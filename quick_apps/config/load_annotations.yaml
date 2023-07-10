@@ -1,0 +1,2 @@
+root_data_dir: /export/home/meeso/500k_all_tasks_dataset_15hz
+lang_ann_folder: lang_paraphrase-MiniLM-L3-v2_singleTasks
