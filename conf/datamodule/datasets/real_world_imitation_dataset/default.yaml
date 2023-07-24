@@ -1,0 +1,16 @@
+_target_: hulc2.datasets.real_world_imitation_dataset.RealWorldImitationDataset
+save_format: "npz"
+key: "vis"
+batch_size: 64
+proprio_state: ${datamodule.proprioception_dims}
+obs_space: ${datamodule.observation_space}
+lang_folder: "lang_paraphrase-MiniLM-L3-v2_singleTasks"
+num_workers: 8
+tasks: ["turn on the green light"]
+number_demos: 30
+max_window_size: 32
+min_window_size: 32
+skip_frames: 1
+pad: true
+act_max_bound: ${datamodule.action_max}
+act_min_bound: ${datamodule.action_min}

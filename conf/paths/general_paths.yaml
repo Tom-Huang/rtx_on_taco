@@ -5,4 +5,4 @@ vr_data: ${paths.parent_folder}/VREnv/data/
 trained_models: ${paths.vapo_path}/trained_models/
 
 # For training affordance model and policy
-datasets: /tmp/datasets/
+datasets: /home/huang/hcg/projects/rtx/data/affordances # /tmp/datasets/

@@ -281,6 +281,8 @@ class Hulc2(pl.LightningModule):
         """
         # ------------Plan Proposal------------ #
         pp_state = self.plan_proposal(perceptual_emb[:, 0], latent_goal)  # (batch, 256) each
+        # print("perceptual emb nan num: ", torch.sum(torch.isnan(perceptual_emb[:, 0])))
+        # print("latent goal nan num: ", torch.sum(torch.isnan(latent_goal)))
         pp_dist = self.dist.get_dist(pp_state)
 
         # ------------ Policy network ------------ #
@@ -302,7 +304,10 @@ class Hulc2(pl.LightningModule):
         gripper_sr_pp = torch.mean((gt_gripper_act == gripper_discrete_pp).float())
 
         # ------------Plan Recognition------------ #
+        # print("percept emb nan num: ", torch.sum(torch.isnan(perceptual_emb)))
         pr_state, seq_feat = self.plan_recognition(perceptual_emb)
+        # print("pattern recognition mean nan num: ", torch.sum(torch.isnan(pr_state.mean)))
+        # print("pattern recognition std nan num: ", torch.sum(torch.isnan(pr_state.std)))
         pr_dist = self.dist.get_dist(pr_state)
         sampled_plan_pr = self.dist.sample_latent_plan(pr_dist)  # sample from recognition net
         action_loss_pr, sample_act_pr = self.action_decoder.loss_and_act(  # type:  ignore

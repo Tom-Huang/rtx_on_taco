@@ -356,11 +356,11 @@ def main(cfg: DictConfig) -> None:
         "callbacks": callbacks,
         "num_sanity_val_steps": 0,
         "max_epochs": 1,
-        "progress_bar_refresh_rate": 0,
-        "weights_summary": None,
+        # "progress_bar_refresh_rate": 0,
+        # "weights_summary": None,
     }
     # Configure multi-GPU training
-    if is_multi_gpu_training(trainer_args["gpus"]):  # type: ignore
+    if is_multi_gpu_training(trainer_args["devices"]):  # type: ignore
         trainer_args["accelerator"] = "ddp"
         trainer_args["plugins"] = DDPPlugin(find_unused_parameters=False)
 

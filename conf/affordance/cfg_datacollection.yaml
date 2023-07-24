@@ -28,7 +28,7 @@ output_cfg:
   multiclass: False
 
 # For collecting dataset with playdata
-dataset_name: real_world/500k_all_tasks_dataset_15hz
+dataset_name: 500k_all_tasks_dataset_15hz # real_world/500k_all_tasks_dataset_15hz
 play_data_dir: /export/home/meeso/${dataset_name}
 
 #Output directory where dataset will be stored

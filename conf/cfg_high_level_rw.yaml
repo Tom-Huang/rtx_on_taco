@@ -26,7 +26,7 @@ agent:
     model_name: last.ckpt
 
 model_free:
-  train_folder: /home/meeso/real_aff_lang_lfp/old_models_missing_annotations/lang_lfp_v1
+  train_folder: /home/huang/hcg/projects/rtx/data/real_aff_lang_lfp/old_models_missing_annotations/lang_lfp_v1 # /home/meeso/real_aff_lang_lfp/old_models_missing_annotations/lang_lfp_v1
   checkpoint: 17
 seed: 42
 env:

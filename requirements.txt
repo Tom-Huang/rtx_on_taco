@@ -17,7 +17,7 @@ MulticoreTSNE
 gitpython
 scipy
 sentence-transformers
-pytorch3d
+#pytorch3d
 gym
 moviepy
 tqdm

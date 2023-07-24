@@ -7,17 +7,17 @@ def get_split_data(play_start_end_ids, data_percent, lang_data=None):
     start_end_ids = np.array(play_start_end_ids)
     cumsum = np.cumsum([e - s for s, e in play_start_end_ids])
 
-    n_samples = int(cumsum[-1] * data_percent)
+    n_samples = int(cumsum[-1] * data_percent)  # lang_data total frame num
     max_idx = min(n_samples, cumsum[-1]) if n_samples > 0 else cumsum[-1]
-    indices = [0]
+    indices = [0]  # the indices of episodes whose sum is just larger than n_samples
     for i in range(len(cumsum) - 1):
         if cumsum[i] <= max_idx:
             indices.append(i + 1)
 
     # Valid play-data start_end_ids episodes
     start_end_ids = [start_end_ids[i] for i in indices]
-    diff = cumsum[indices[-1]] - n_samples
-    start_end_ids[-1][-1] = start_end_ids[-1][-1] - diff
+    diff = cumsum[indices[-1]] - n_samples  # the difference between the last start_end_ids end to n_samples
+    start_end_ids[-1][-1] = start_end_ids[-1][-1] - diff  # modify the end of the last start_end_ids to match n_samples
 
     # Only add frames w/lang that are inside selected non-lang frames
     if lang_data is not None:

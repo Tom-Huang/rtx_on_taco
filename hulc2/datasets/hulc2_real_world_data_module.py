@@ -16,6 +16,7 @@ import torchvision
 import hulc2
 from hulc2.datasets.utils.episode_utils import load_dataset_statistics
 from hulc2.datasets.utils.shared_memory_loader import SharedMemoryLoader
+from hulc2.datasets.utils.shared_memory_loader_lang_only import SharedMemoryLoaderLangOnly
 
 logger = logging.getLogger(__name__)
 DEFAULT_TRANSFORM = OmegaConf.create({"train": None, "val": None})
@@ -59,10 +60,10 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
             kaggle.api.dataset_download_files("oiermees/taco-robot", path=self.root_data_path, unzip=True)
 
         if self.use_shm:
-            train_shmem_loader = SharedMemoryLoader(self.datasets_cfg, self.root_data_path, split="training")
+            train_shmem_loader = SharedMemoryLoaderLangOnly(self.datasets_cfg, self.root_data_path, split="training")
             train_shm_lookup = train_shmem_loader.load_data_in_shared_memory()
 
-            val_shmem_loader = SharedMemoryLoader(self.datasets_cfg, self.root_data_path, split="validation")
+            val_shmem_loader = SharedMemoryLoaderLangOnly(self.datasets_cfg, self.root_data_path, split="validation")
             val_shm_lookup = val_shmem_loader.load_data_in_shared_memory()
 
             save_lang_data(train_shm_lookup, val_shm_lookup)
@@ -108,7 +109,8 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
                 dataset,
                 batch_size=dataset.batch_size,
                 num_workers=dataset.num_workers,
-                pin_memory=False,
+                # pin_memory=False,
+                pin_memory=True,
             )
             for key, dataset in self.train_datasets.items()
         }
@@ -119,7 +121,8 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
                 dataset,
                 batch_size=dataset.batch_size,
                 num_workers=dataset.num_workers,
-                pin_memory=False,
+                # pin_memory=False,
+                pin_memory=True,
             )
             for key, dataset in self.val_datasets.items()
         }

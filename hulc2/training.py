@@ -27,7 +27,7 @@ from hulc2.utils.utils import (
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../conf", config_name="cfg_low_level")
+@hydra.main(config_path="../conf", config_name="cfg_low_level_rw_lang_only")
 def train(cfg: DictConfig) -> None:
     """
     This is called to start a training.
@@ -66,6 +66,7 @@ def train(cfg: DictConfig) -> None:
         "logger": train_logger,
         "callbacks": callbacks,
         "benchmark": False,
+        "profiler": "simple",
     }
 
     # Configure multi-GPU training

@@ -162,3 +162,6 @@ cython_debug/
 __pycache__/
 .vscode/
 *.egg-info/
+
+outputs
+hydra_outputs

@@ -1,3 +1,4 @@
+import time
 import logging
 from multiprocessing.shared_memory import SharedMemory
 from typing import Dict, List, Optional
@@ -114,6 +115,10 @@ class ShmDataset(BaseDataset):
         for key, lookup in self.episode_lookup_dict.items():
             offset, j = lookup[idx]
             shape = (window_size + j,) + self.shapes[key]
+            # start with offset position, we can read the following (end-start+1-min_win_size) frames
+            # it loads (win_size + j) frames and then select the frames starting from the j-th position
+            # in the end, we load win_size frames
+            # can (win_size + j) be larger than (end-start+1-min_win_size)? if j == end - start - min_win_size, win_size == max_win_size.
             array = np.ndarray(shape, dtype=self.dtypes[key], buffer=self.shared_memories[key].buf, offset=offset)[j:]
             episode[key] = array
         if self.with_lang:
@@ -134,8 +139,12 @@ class ShmDataset(BaseDataset):
         seq_depth_obs:  tuple of numpy arrays of depths observations
         seq_acts:       numpy array of actions
         """
+        # st = time.time()
         episode = self.load_sequence_shm(idx, window_size)
+        # ed = time.time()
+        # print("time of loading sharedmemory: ", ed-st, "s.")
 
+        # st = time.time()
         seq_state_obs = process_state(episode, self.observation_space, self.transforms, self.proprio_state)
         seq_rgb_obs = process_rgb(episode, self.observation_space, self.transforms)
         seq_depth_obs = process_depth(episode, self.observation_space, self.transforms)
@@ -145,6 +154,8 @@ class ShmDataset(BaseDataset):
         info = self.add_language_info(info, idx)
         seq_dict = {**seq_state_obs, **seq_rgb_obs, **seq_depth_obs, **seq_acts, **info, **seq_lang}  # type:ignore
         seq_dict["idx"] = idx  # type:ignore
+        # ed = time.time()
+        # print("time of processing the data: ", ed-st, "s.")
 
         return seq_dict
 

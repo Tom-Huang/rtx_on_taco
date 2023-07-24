@@ -39,6 +39,8 @@ def main(cfg: DictConfig) -> None:
         ]
     print("Loading Language Model")
     model = hydra.utils.instantiate(cfg.model)
+    model = model.to("cuda")
+    print(model.model.device)
     print(f"Computing Embeddings with Model --> {cfg.model}")
     data["language"]["emb"] = model(data["language"]["ann"]).cpu().numpy()
     print("Saving data")

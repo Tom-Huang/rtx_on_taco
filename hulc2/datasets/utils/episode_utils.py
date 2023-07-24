@@ -1,12 +1,37 @@
+import os
 import logging
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Tuple
+import re
 
 import numpy as np
 from omegaconf import DictConfig, ListConfig, OmegaConf
 import torch
 
 logger = logging.getLogger(__name__)
+
+
+def lookup_naming_pattern(dataset_dir: Path, save_format: str) -> Tuple[Tuple[Path, str], int]:
+    """
+    Check naming pattern of dataset files.
+    Args:
+        dataset_dir: Path to dataset.
+        save_format: File format (CALVIN default is npz).
+    Returns:
+        naming_pattern: 'file_0000001.npz' -> ('file_', '.npz')
+        n_digits: Zero padding of file enumeration.
+    """
+    it = os.scandir(dataset_dir)
+    while True:
+        filename = Path(next(it))
+        if save_format in filename.suffix:
+            break
+    aux_naming_pattern = re.split(r"\d+", filename.stem)
+    naming_pattern = (filename.parent / aux_naming_pattern[0], filename.suffix)
+    n_digits = len(re.findall(r"\d+", filename.stem)[0])
+    assert len(naming_pattern) == 2
+    assert n_digits > 0
+    return naming_pattern, n_digits
 
 
 def process_state(

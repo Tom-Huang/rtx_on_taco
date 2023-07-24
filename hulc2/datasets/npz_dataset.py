@@ -1,3 +1,4 @@
+import time
 from itertools import chain
 import json
 import logging
@@ -127,8 +128,12 @@ class NpzDataset(BaseDataset):
         start_file_indx = self.episode_lookup[idx]
         end_file_indx = start_file_indx + window_size
 
+        # st = time.time()
         episode = self.zip_sequence(start_file_indx, end_file_indx, idx)
+        # ed = time.time()
+        # print("time of loading sharedmemory: ", ed-st, "s.")
 
+        # st = time.time()
         seq_state_obs = process_state(episode, self.observation_space, self.transforms, self.proprio_state)
         seq_rgb_obs = process_rgb(episode, self.observation_space, self.transforms)
         seq_depth_obs = process_depth(episode, self.observation_space, self.transforms)
@@ -139,6 +144,8 @@ class NpzDataset(BaseDataset):
         info = self.add_language_info(info, idx)
         seq_dict = {**seq_state_obs, **seq_rgb_obs, **seq_depth_obs, **seq_acts, **info, **seq_lang}  # type:ignore
         seq_dict["idx"] = idx  # type:ignore
+        # ed = time.time()
+        # print("time of processing the data: ", ed-st, "s.")
 
         return seq_dict
 

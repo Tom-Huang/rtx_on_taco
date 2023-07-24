@@ -1,6 +1,6 @@
 defaults:
-  - callbacks: default
-  - datamodule: default
+  - callbacks: real_world_default
+  - datamodule: real_world_default
   - model: sbert
   - loss: default
   - training: default_training
@@ -9,10 +9,11 @@ defaults:
   - annotations@train_instructions: new_playtable
   - annotations@val_instructions: new_playtable_validation
 
+  - callbacks/rollout: default
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   #- override datamodule/observation_space: state_only
-  #- override datamodule/datasets: vision_only
+  - override datamodule/datasets: vision_only
   - _self_
 
 seed: 42
@@ -25,11 +26,17 @@ with_text: false
 reannotate: false
 prior_steps_window: 16
 validation_scene: calvin_scene_D
+path: "/export/home/huang/taco_extra_processed_15hz_resize/annotations/auto_lang_ann.npy"
+name_folder: "lang_paraphrase-MiniLM-L3-v2_singleTasks"
+data_percent: 10
 datamodule:
+  root_data_dir: "/export/home/huang/taco_extra_processed_15hz_resize"
   datasets:
     vision_dataset:
       min_window_size: 64
       max_window_size: 64
+
+
 
 hydra:
   run:

@@ -40,7 +40,7 @@ def check_shm_lookup_exists(dataset_type):
         return None
 
 
-class SharedMemoryLoader:
+class SharedMemoryLoaderLangOnly:
     def __init__(self, datasets_cfg, dataset_dir, split):
         self.ep_ids_file = "ep_start_end_ids.npy"
         self.load_lang_embeddings = datasets_cfg.lang_dataset.load_lang_embeddings
@@ -57,10 +57,9 @@ class SharedMemoryLoader:
             self.min_window_size_lang = datasets_cfg.lang_dataset.min_window_size
             if "vision_dataset" not in datasets_cfg:
                 self.min_window_size_vision = self.min_window_size_lang
+                self.max_window_size_vision = datasets_cfg.lang_dataset.max_window_size
 
-        self.data_percent = 0.01 if self.dataset_type == "val" else datasets_cfg.lang_dataset.data_percent
-        # self.data_percent = 0.01 if self.dataset_type == "val" else datasets_cfg.lang_dataset.data_percent
-        # self.data_percent = 0.01
+        self.data_percent = 1.0 if self.dataset_type == "val" else datasets_cfg.lang_dataset.data_percent
         self.n_proc = 8
 
     def worker_process(self, proc_num, ep_start_end_ids, offsets, shmem, lang_ep_start_end_ids, return_dict):
@@ -76,8 +75,10 @@ class SharedMemoryLoader:
                 shared_array = np.ndarray(array.shape, dtype=array.dtype, buffer=shmem[key].buf, offset=offsets[key])
                 shared_array[:] = array[:]
 
-                for j, idx in enumerate(range(start_idx, end_idx + 1 - self.min_window_size_vision)):
-                    episode_lookup_vision[key].append((offsets[key], j))
+                for j, idx in enumerate(range(start_idx, end_idx + 1 - self.max_window_size_vision)):
+                    episode_lookup_vision[key].append(
+                        (offsets[key], j)
+                    )  # what is j? j range from 0 to end-start+1-min_win_size
                     if idx in lang_ep_start_end_ids[:, 0]:
                         lang_episode_dict[key][idx] = (offsets[key], j)
                 offsets[key] += array.nbytes
@@ -87,25 +88,22 @@ class SharedMemoryLoader:
 
     def load_data_in_shared_memory(self):
         lang_data = np.load(self.dataset_dir / self.lang_folder / "auto_lang_ann.npy", allow_pickle=True).item()
-        max_id = 100
-        lang_data = {
-            "language": {
-                "ann": lang_data["language"]["ann"][:max_id],
-                "emb": lang_data["language"]["emb"][:max_id],
-                "task": lang_data["language"]["task"][:max_id],
-            },
-            "info": {"indx": lang_data["info"]["indx"][:max_id], "episodes": lang_data["info"]["episodes"][:max_id]},
-        }
-        if Path(self.dataset_dir / "ep_start_end_ids.npy").is_file():
-            ep_start_end_ids = np.load(self.dataset_dir / "ep_start_end_ids.npy")
-        else:
-            ep_start_end_ids = get_start_end_ids(self.dataset_dir)[self.split]
-        lang_data = get_split_sequences(
-            ep_start_end_ids, lang_data
-        )  # filter out lang_data that are not in the play data range
-        ep_start_end_ids, lang_data = get_split_data(
-            ep_start_end_ids, self.data_percent, lang_data
-        )  # select data_percent of play data and filter lang_data accordingly
+        # if Path(self.dataset_dir / "ep_start_end_ids.npy").is_file():
+        #     ep_start_end_ids = np.load(self.dataset_dir / "ep_start_end_ids.npy")
+        # else:
+        #     ep_start_end_ids = get_start_end_ids(self.dataset_dir)[self.split]
+        ep_start_end_ids = np.array(lang_data["info"]["indx"])
+        # ep_start_end_ids = ep_start_end_ids[:100]
+        # lang_data["info"]["indx"] = lang_data["info"]["indx"][:100]
+        # lang_data = get_split_sequences(ep_start_end_ids, lang_data)
+        # ep_start_end_ids, lang_data = get_split_data(ep_start_end_ids, self.data_percent, lang_data)
+        total_len = ep_start_end_ids.shape[0]
+        val_split_id_start = int(total_len * 0.9)
+        if self.split == "validation":
+            ep_start_end_ids = ep_start_end_ids[val_split_id_start:]
+        elif self.split == "training":
+            ep_start_end_ids = ep_start_end_ids[:val_split_id_start]
+        lang_data["info"]["indx"] = ep_start_end_ids
 
         lang_ep_start_end_ids = np.array(lang_data["info"]["indx"])  # each of them are 64
         if self.load_lang_embeddings:
@@ -172,7 +170,7 @@ class SharedMemoryLoader:
     def create_shmem(self, ep_start_end_ids):
         # load first episode to determine memory usage
         seq = self.zip_sequence(ep_start_end_ids[0][0], ep_start_end_ids[0][0] + 1)
-        total_size = np.sum(ep_start_end_ids[:, 1] - ep_start_end_ids[:, 0])
+        total_size = np.sum(ep_start_end_ids[:, 1] - ep_start_end_ids[:, 0] + len(ep_start_end_ids))
         shmem = {}
         shapes = {}
         sizes = {}
