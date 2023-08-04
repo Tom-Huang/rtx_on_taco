@@ -41,7 +41,7 @@ def check_shm_lookup_exists(dataset_type):
 
 
 class SharedMemoryLoader:
-    def __init__(self, datasets_cfg, dataset_dir, split):
+    def __init__(self, datasets_cfg, dataset_dir, split, **other_args):
         self.ep_ids_file = "ep_start_end_ids.npy"
         self.load_lang_embeddings = datasets_cfg.lang_dataset.load_lang_embeddings
         self.split = split

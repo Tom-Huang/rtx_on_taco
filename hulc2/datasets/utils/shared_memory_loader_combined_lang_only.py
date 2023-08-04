@@ -40,18 +40,21 @@ def check_shm_lookup_exists(dataset_type):
         return None
 
 
-class SharedMemoryLoaderLangOnly:
-    def __init__(self, datasets_cfg, dataset_dir, split, split_dict={}):
+class SharedMemoryLoaderCombinedLangOnly:
+    def __init__(self, datasets_cfg, dataset_dirs, split, split_dict_list=[], **other_args):
         self.ep_ids_file = "ep_start_end_ids.npy"
         self.load_lang_embeddings = datasets_cfg.lang_dataset.load_lang_embeddings
         self.split = split
-        self.split_dict = split_dict
+        self.split_dict_list = split_dict_list
         self.obs_space = datasets_cfg.lang_dataset.obs_space
-        self.dataset_dir = dataset_dir
+        self.dataset_dirs = dataset_dirs
         self.dataset_type = "train" if "training" in split else "val"
         self.lang_folder = datasets_cfg.lang_dataset.lang_folder
         self.save_format = "npz"
-        self.naming_pattern, self.n_digits = self.lookup_naming_pattern()
+        # self.naming_pattern, self.n_digits = self.lookup_naming_pattern()
+        pattern_n_digits_pairs = [self.lookup_naming_pattern(i) for i in range(len(self.dataset_dirs))]
+        self.naming_patterns = [x[0] for x in pattern_n_digits_pairs]
+        self.n_digits = [x[1] for x in pattern_n_digits_pairs]
         if "vision_dataset" in datasets_cfg:
             self.min_window_size_vision = datasets_cfg.vision_dataset.min_window_size
         if "lang_dataset" in datasets_cfg:
@@ -63,7 +66,7 @@ class SharedMemoryLoaderLangOnly:
         self.data_percent = 1.0 if self.dataset_type == "val" else datasets_cfg.lang_dataset.data_percent
         self.n_proc = 8
 
-    def worker_process(self, proc_num, ep_start_end_ids, offsets, shmem, lang_ep_start_end_ids, return_dict):
+    def worker_process(self, proc_num, dataset_i, ep_start_end_ids, offsets, shmem, lang_ep_start_end_ids, return_dict):
         episode_lookup_vision = defaultdict(list)
         lang_episode_dict = defaultdict(dict)
         if proc_num == 0:
@@ -71,15 +74,17 @@ class SharedMemoryLoaderLangOnly:
         else:
             pbar = None
         for i, (start_idx, end_idx) in enumerate(ep_start_end_ids):
-            seq = self.zip_sequence(start_idx, end_idx, pbar)
+            seq = self.zip_sequence(dataset_i, start_idx, end_idx, pbar)
             for key, array in seq.items():
                 shared_array = np.ndarray(array.shape, dtype=array.dtype, buffer=shmem[key].buf, offset=offsets[key])
                 shared_array[:] = array[:]
 
                 for j, idx in enumerate(range(start_idx, end_idx + 1 - self.max_window_size_vision)):
+                    # episode offset values are correct, j is just the relative offset within an episode
                     episode_lookup_vision[key].append(
                         (offsets[key], j)
                     )  # what is j? j range from 0 to end-start+1-min_win_size
+                    # when the j is at the beginning of the episode, add it to lang_episode_dict
                     if idx in lang_ep_start_end_ids[:, 0]:
                         lang_episode_dict[key][idx] = (offsets[key], j)
                 offsets[key] += array.nbytes
@@ -88,33 +93,46 @@ class SharedMemoryLoaderLangOnly:
             pbar.close()
 
     def load_data_in_shared_memory(self):
-        lang_data = np.load(self.dataset_dir / self.lang_folder / "auto_lang_ann.npy", allow_pickle=True).item()
-        ep_start_end_ids = np.array(lang_data["info"]["indx"])
+        ep_start_end_ids_list = []
+        lang_ep_start_end_ids_list = []
+        lang_data_list = []
+        lang_ann_list = []
+        for dataset_i, dataset_dir in enumerate(self.dataset_dirs):
+            lang_data = np.load(dataset_dir / self.lang_folder / "auto_lang_ann.npy", allow_pickle=True).item()
+            ep_start_end_ids = np.array(lang_data["info"]["indx"])
+            ep_start_end_ids_list.append(ep_start_end_ids)
 
-        if len(self.split_dict) > 0:
-            ep_start_end_ids = ep_start_end_ids[self.split_dict[self.split]]
-            lang_data["info"]["indx"] = ep_start_end_ids
-            lang_data["language"]["emb"] = lang_data["language"]["emb"][self.split_dict[self.split]]
-            lang_data["language"]["ann"] = [lang_data["language"]["ann"][i] for i in self.split_dict[self.split]]
-            print("##############TOTAL EP NUMBER####################")
-            print("info_index_num:", ep_start_end_ids.shape)
-            print("##############TOTAL FRAME NUMBER####################")
-            print(np.sum([ed - st for (st, ed) in lang_data["info"]["indx"]]))
-        else:
-            total_len = ep_start_end_ids.shape[0]
-            val_split_id_start = int(total_len * 0.9)
-            if self.split == "validation":
-                ep_start_end_ids = ep_start_end_ids[val_split_id_start:]
-            elif self.split == "training":
-                ep_start_end_ids = ep_start_end_ids[:val_split_id_start]
-            lang_data["info"]["indx"] = ep_start_end_ids
+            if dataset_i < len(self.split_dict_list):
+                split_dict = self.split_dict_list[dataset_i]
+                ep_start_end_ids = ep_start_end_ids[split_dict[self.split]]
+                lang_data["info"]["indx"] = ep_start_end_ids
+                lang_data["language"]["emb"] = [lang_data["language"]["emb"][x] for x in split_dict[self.split]]
+                lang_data["language"]["ann"] = [lang_data["language"]["ann"][i] for i in split_dict[self.split]]
+                print(f"##############TOTAL EP NUMBER for dataset {dataset_i}####################")
+                print("info_index_num:", ep_start_end_ids.shape)
+                print(f"##############TOTAL FRAME NUMBER for dataset {dataset_i}####################")
+                print(np.sum([ed - st for (st, ed) in lang_data["info"]["indx"]]))
+            else:
+                total_len = ep_start_end_ids.shape[0]
+                val_split_id_start = int(total_len * 0.9)
+                if self.split == "validation":
+                    ep_start_end_ids = ep_start_end_ids[val_split_id_start:]
+                elif self.split == "training":
+                    ep_start_end_ids = ep_start_end_ids[:val_split_id_start]
+                lang_data["info"]["indx"] = ep_start_end_ids
+            lang_data_list.append(lang_data)
 
-        lang_ep_start_end_ids = np.array(lang_data["info"]["indx"])  # each of them are 64
-        if self.load_lang_embeddings:
-            lang_ann = lang_data["language"]["emb"]
-        else:
-            lang_ann = lang_data["language"]["ann"]
-        shmem, shapes, sizes, dtypes, shmem_lookup = self.create_shmem(ep_start_end_ids)
+            lang_ep_start_end_ids = np.array(lang_data["info"]["indx"])  # each of them are 64
+            lang_ep_start_end_ids_list.append(lang_ep_start_end_ids)
+            if self.load_lang_embeddings:
+                lang_ann = [x for x in lang_data["language"]["emb"]]
+            else:
+                lang_ann = lang_data["language"]["ann"]
+
+            lang_ann_list.extend(lang_ann)
+        log.info(f"lang_ann_list has total len of {len(lang_ann_list)}")
+
+        shmem, shapes, sizes, dtypes, shmem_lookup = self.create_shmem(ep_start_end_ids_list)
 
         if shmem_lookup is not None:
             # using existing shared memory
@@ -124,57 +142,93 @@ class SharedMemoryLoaderLangOnly:
         lang_lookup = []
 
         episode_lookup_lang = defaultdict(list)
-        log.info(
-            f"Loading {self.dataset_type} language episodes into shared memory. "
-            f"(progress bar shows only worker process 0)."
-        )
-
-        if self.n_proc > len(ep_start_end_ids):
-            self.n_proc = len(ep_start_end_ids)
-        split_indices = np.array_split(ep_start_end_ids, self.n_proc, axis=0)
-        split_lens = [np.sum(np.diff(split_indices[i])) for i in range(len(split_indices))]
-        obs_size = {key: dtypes[key].itemsize * np.prod(shapes[key]) for key in dtypes}
-        offsets = [{key: n * obs_size[key] for key in dtypes} for n in np.cumsum([0] + split_lens[:-1])]
-
-        manager = multiprocessing.Manager()
-        return_dict = manager.dict()
-        processes = []
-        # load vision data with multiple processes
-        for i in range(self.n_proc):
-            p = multiprocessing.Process(
-                target=self.worker_process,
-                args=(i, split_indices[i], offsets[i], shmem, lang_ep_start_end_ids, return_dict),
+        dataset_offset_num = 0
+        total_size = 0
+        episode_lookup_vision = defaultdict(list)
+        lang_episode_dict = defaultdict(dict)
+        for dataset_i, dataset_dir in enumerate(self.dataset_dirs):
+            log.info(
+                f"Loading {self.dataset_type} dataset {dataset_i} language episodes into shared memory. "
+                f"(progress bar shows only worker process 0)."
             )
-            processes.append(p)
-            p.start()
-        for proc in processes:
-            proc.join()
+            ep_start_end_ids = ep_start_end_ids_list[dataset_i]
+            total_size = np.sum(ep_start_end_ids[:, 1] - ep_start_end_ids[:, 0] + len(ep_start_end_ids))
 
-        episode_lookup_vision, lang_episode_dict = gather_results(return_dict)
+            if self.n_proc > total_size:
+                self.n_proc = total_size
+            split_indices = np.array_split(ep_start_end_ids, self.n_proc, axis=0)
+            split_lens = [np.sum(np.diff(split_indices[i])) for i in range(len(split_indices))]
+            obs_size = {key: dtypes[key].itemsize * np.prod(shapes[key]) for key in dtypes}
+            offsets = [
+                {key: (dataset_offset_num + n) * obs_size[key] for key in dtypes}
+                for n in np.cumsum([0] + split_lens[:-1])
+            ]
+            dataset_offset_num += total_size
 
-        # lang data
-        for i, (start_idx, end_idx) in enumerate(tqdm(lang_ep_start_end_ids)):
-            for key in lang_episode_dict:
-                offset, step = lang_episode_dict[key][start_idx]
-                for j, idx in enumerate(range(start_idx, end_idx + 1 - self.min_window_size_lang)):
-                    episode_lookup_lang[key].append((offset, step + j))
-            for idx in range(start_idx, end_idx + 1 - self.min_window_size_lang):
-                lang_lookup.append(i)
+            manager = multiprocessing.Manager()
+            return_dict = manager.dict()
+            processes = []
+            # load vision data with multiple processes
+            for i in range(self.n_proc):
+                p = multiprocessing.Process(
+                    target=self.worker_process,
+                    args=(
+                        i,
+                        dataset_i,
+                        split_indices[i],
+                        offsets[i],
+                        shmem,
+                        lang_ep_start_end_ids_list[dataset_i],
+                        return_dict,
+                    ),
+                )
+                processes.append(p)
+                p.start()
+            for proc in processes:
+                proc.join()
+
+            # collect return_dict for different datasets
+            log.info(f"Finish loading dataset {dataset_i} into shared memory.")
+            log.info(f"Gathering results from return dict.")
+            ith_episode_lookup_vision, ith_lang_episode_dict = gather_results(return_dict)
+
+            log.info(f"Finish gathering results from return dict.")
+            for key, value in ith_episode_lookup_vision.items():
+                max_lang_dict_id = len(lang_episode_dict[key])
+                episode_lookup_vision[key] += value
+                for lang_id, lang_offset in ith_lang_episode_dict[key].items():
+                    lang_episode_dict[key][max_lang_dict_id + lang_id] = lang_offset
+
+            max_lang_dataset_id = int(np.sum([len(lang_ep_start_end_ids_list[x]) for x in range(dataset_i)]))
+            for i, (start_idx, end_idx) in enumerate(tqdm(lang_ep_start_end_ids_list[dataset_i])):
+                for key in ith_lang_episode_dict:
+                    # offset and step are correct
+                    offset, step = ith_lang_episode_dict[key][start_idx]
+                    for j, idx in enumerate(range(start_idx, end_idx + 1 - self.min_window_size_lang)):
+                        episode_lookup_lang[key].append((offset, step + j))
+                for idx in range(start_idx, end_idx + 1 - self.min_window_size_lang):
+                    lang_lookup.append(i + max_lang_dataset_id)
         result = {
             "episode_lookup_vision": episode_lookup_vision,
             "episode_lookup_lang": episode_lookup_lang,
             "lang_lookup": lang_lookup,
-            "lang_ann": lang_ann,
+            "lang_ann": lang_ann_list,
             "shapes": shapes,
             "sizes": sizes,
             "dtypes": dtypes,
         }
+
         return result
 
-    def create_shmem(self, ep_start_end_ids):
+    def create_shmem(self, ep_start_end_ids_list):
         # load first episode to determine memory usage
-        seq = self.zip_sequence(ep_start_end_ids[0][0], ep_start_end_ids[0][0] + 1)
-        total_size = np.sum(ep_start_end_ids[:, 1] - ep_start_end_ids[:, 0] + len(ep_start_end_ids))
+        seq = self.zip_sequence(0, ep_start_end_ids_list[0][0][0], ep_start_end_ids_list[0][0][0] + 1)
+        total_size = np.sum(
+            [
+                np.sum(ep_start_end_ids[:, 1] - ep_start_end_ids[:, 0] + len(ep_start_end_ids))
+                for ep_start_end_ids in ep_start_end_ids_list
+            ]
+        )
         shmem = {}
         shapes = {}
         sizes = {}
@@ -201,7 +255,7 @@ class SharedMemoryLoaderLangOnly:
                 s.close()
                 s.unlink()
                 log.warning(
-                    f"Found existing shared memory {self.dataset_type}_{key}, freeing up memory."
+                    f"Found existing shared memory {self.dataset_type}_{key}"
                     "In case of multiple training runs on the same node, this will lead to problems."
                 )
             except FileNotFoundError:
@@ -216,33 +270,35 @@ class SharedMemoryLoaderLangOnly:
 
         return shmem, shapes, sizes, dtypes, None
 
-    def zip_sequence(self, start_idx, end_idx, pbar=None):
+    def zip_sequence(self, dataset_idx, start_idx, end_idx, pbar=None):
         keys = list(chain(*self.obs_space.values()))
         keys.remove("language")
         # keys.append("scene_obs")
         n_items = end_idx - start_idx
         episode = {}
-        data = np.load(self.get_episode_name(start_idx))
+        data = np.load(self.get_episode_name(dataset_idx, start_idx))
         for key in keys:
             shape = (n_items,) + data[key].shape
             dtype = data[key].dtype
             episode[key] = np.empty(shape=shape, dtype=dtype)
         for i, file_idx in enumerate(range(start_idx, end_idx)):
-            with np.load(self.get_episode_name(file_idx)) as data:
+            with np.load(self.get_episode_name(dataset_idx, file_idx)) as data:
                 for key in keys:
                     episode[key][i] = data[key]
             if pbar is not None:
                 pbar.update(1)
         return episode
 
-    def get_episode_name(self, idx):
+    def get_episode_name(self, dataset_idx, idx):
         """
         Convert frame idx to file name
         """
-        return Path(f"{self.naming_pattern[0]}{idx:0{self.n_digits}d}{self.naming_pattern[1]}")
+        return Path(
+            f"{self.naming_patterns[dataset_idx][0]}{idx:0{self.n_digits[dataset_idx]}d}{self.naming_patterns[dataset_idx][1]}"
+        )
 
-    def lookup_naming_pattern(self, n_digits=None):
-        it = os.scandir(self.dataset_dir)
+    def lookup_naming_pattern(self, dataset_i, n_digits=None):
+        it = os.scandir(self.dataset_dirs[dataset_i])
         while True:
             filename = Path(next(it))
             if self.save_format in filename.suffix and "camera" not in filename.stem:

@@ -50,6 +50,7 @@ class ShmDataset(BaseDataset):
     def set_lang_data(self, lang_data):
         if self.with_lang:
             self.episode_lookup_dict = lang_data["episode_lookup_lang"]
+            # TODO: check in shared memory loader what is lang_lookup
             self.lang_lookup = lang_data["lang_lookup"]
             self.lang_ann = lang_data["lang_ann"]
         else:
@@ -122,7 +123,7 @@ class ShmDataset(BaseDataset):
             array = np.ndarray(shape, dtype=self.dtypes[key], buffer=self.shared_memories[key].buf, offset=offset)[j:]
             episode[key] = array
         if self.with_lang:
-            episode["language"] = self.lang_ann[self.lang_lookup[idx]][0]  # TODO check  [0]
+            episode["language"] = self.lang_ann[self.lang_lookup[idx]]  # [0]  # TODO check  [0]
         return episode
 
     def get_sequences(self, idx: int, window_size: int) -> Dict:

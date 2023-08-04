@@ -17,16 +17,17 @@ import hulc2
 from hulc2.datasets.utils.episode_utils import load_dataset_statistics
 from hulc2.datasets.utils.shared_memory_loader import SharedMemoryLoader
 from hulc2.datasets.utils.shared_memory_loader_lang_only import SharedMemoryLoaderLangOnly
+from hulc2.datasets.utils.shared_memory_loader_combined_lang_only import SharedMemoryLoaderCombinedLangOnly
 
 logger = logging.getLogger(__name__)
 DEFAULT_TRANSFORM = OmegaConf.create({"train": None, "val": None})
 
 
-class Hulc2RealWorldDataModule(pl.LightningDataModule):
+class Hulc2RealWorldCombinedDataModule(pl.LightningDataModule):
     def __init__(
         self,
         datasets: DictConfig,
-        root_data_dir: str = "data",
+        root_data_dirs: List[str] = [],
         num_workers: int = 8,
         transforms: DictConfig = DEFAULT_TRANSFORM,
         shuffle_val: bool = False,
@@ -39,46 +40,49 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
         self.train_sampler = None
         self.val_sampler = None
         self.num_workers = num_workers
-        root_data_path = Path(root_data_dir)
-        if not root_data_path.is_absolute():
-            root_data_path = Path(hulc2.__file__).parent / root_data_path
-        self.root_data_path = root_data_path
+        root_data_paths = []
+        for root_data_dir in root_data_dirs:
+            root_data_path = Path(root_data_dir)
+            if not root_data_path.is_absolute():
+                root_data_path = Path(hulc2.__file__).parent / root_data_path
+            root_data_paths.append(root_data_path)
+        self.root_data_paths = root_data_paths
 
         self.shuffle_val = shuffle_val
         self.modalities: List[str] = []
         self.transforms = transforms
         self.use_shm = np.any(["shm_dataset" in v._target_ for k, v in self.datasets_cfg.items()])
-        if "root_data_dirs_list" in kwargs:
-            self.root_data_dirs = kwargs["root_data_dirs_list"]
 
     def prepare_data(self, *args, **kwargs):
         # check if files already exist
-        dataset_exist = np.any([len(list(self.root_data_path.glob(extension))) for extension in ["*.npz", "*.pkl"]])
+        for root_data_path in self.root_data_paths:
+            dataset_exist = np.any([len(list(root_data_path.glob(extension))) for extension in ["*.npz", "*.pkl"]])
 
-        # download and unpack images
-        if not dataset_exist:
-            logger.info(f"Dataset not found, trying to download from kaggle to {self.root_data_path}")
-            kaggle.api.authenticate()
-            kaggle.api.dataset_download_files("oiermees/taco-robot", path=self.root_data_path, unzip=True)
-
-        if self.use_shm:
-            additional_args = {}
+            # download and unpack images
+            if not dataset_exist:
+                logger.info(f"Dataset not found, trying to download from kaggle to {self.root_data_path}")
+                kaggle.api.authenticate()
+                kaggle.api.dataset_download_files("oiermees/taco-robot", path=root_data_path, unzip=True)
 
         if "lang_dataset" in self.datasets_cfg:
-            split_dict = self._split_lang_dataset(self.root_data_path)
+            split_dict_list = []
+
+            for root_data_path in self.root_data_paths:
+                tmp_split_dict = self._split_lang_dataset(root_data_path)
+                split_dict_list.append(tmp_split_dict)
 
         if self.use_shm:
-            train_shmem_loader = SharedMemoryLoaderLangOnly(
+            train_shmem_loader = SharedMemoryLoaderCombinedLangOnly(
                 datasets_cfg=self.datasets_cfg,
-                dataset_dir=self.root_data_path,
+                dataset_dirs=self.root_data_paths,
                 split="training",
-                split_dict=split_dict,
+                split_dict_list=split_dict_list,
             )
-            val_shmem_loader = SharedMemoryLoaderLangOnly(
+            val_shmem_loader = SharedMemoryLoaderCombinedLangOnly(
                 datasets_cfg=self.datasets_cfg,
-                dataset_dir=self.root_data_path,
+                dataset_dirs=self.root_data_paths,
                 split="validation",
-                split_dict=split_dict,
+                split_dict_list=split_dict_list,
             )
 
             train_shm_lookup = train_shmem_loader.load_data_in_shared_memory()
@@ -88,7 +92,7 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         # in the real world dataset the splits are not defined over folders, but in a json file
-        transforms = load_dataset_statistics(self.root_data_path, self.root_data_path, self.transforms)
+        transforms = load_dataset_statistics(self.root_data_paths[0], self.root_data_paths[0], self.transforms)
 
         self.train_transforms = {
             cam: [hydra.utils.instantiate(transform, _convert_="partial") for transform in transforms.train[cam]]
@@ -111,10 +115,10 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
             if "Dataset" not in dataset._target_:
                 continue
             train_dataset = hydra.utils.instantiate(
-                dataset, datasets_dir=self.root_data_path, transforms=self.train_transforms, split="training"
+                dataset, datasets_dir=self.root_data_paths[0], transforms=self.train_transforms, split="training"
             )
             val_dataset = hydra.utils.instantiate(
-                dataset, datasets_dir=self.root_data_path, transforms=self.val_transforms, split="validation"
+                dataset, datasets_dir=self.root_data_paths[0], transforms=self.val_transforms, split="validation"
             )
             if self.use_shm:
                 train_dataset.set_lang_data(train_shm_lookup)

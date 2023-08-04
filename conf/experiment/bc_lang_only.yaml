@@ -1,0 +1,35 @@
+# @package _global_
+# work with cfg_low_level_rw_lang_only
+defaults:
+  - override /datamodule/datasets: lang_only_shm
+  - override /model/language_encoder: none
+  - override /datamodule/observation_space: lang_rgb_static_rel_gripper_act
+  - override /model/perceptual_encoder/rgb_gripper: none
+  - override /model/optimizer: adamw
+  - _self_
+
+datamodule:
+  root_data_dir: "/export/home/huang/taco_extra_processed_15hz_resize"
+  datasets:
+    lang_dataset:
+      batch_size: 64
+      load_lang_embeddings: True
+      lang_folder: lang_paraphrase-MiniLM-L3-v2_singleTasks
+      num_workers: 4
+
+logger:
+  id: single_task_goal_cond_bc
+
+trainer:
+  devices: -1
+  max_epochs: 1000
+
+training:
+  lr: 0.0001
+
+model:
+  _target_: hulc2.models.hulc2_lang_only.Hulc2LangOnly
+  action_decoder:
+    perceptual_emb_slice: [0,64]
+  plan_recognition:
+    max_position_embeddings: 32

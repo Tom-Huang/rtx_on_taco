@@ -11,14 +11,24 @@ datamodule:
   root_data_dir: "/export/home/huang/taco_extra_processed_15hz_resize"
   datasets:
     real_world_imitation_dataset:
-      num_workers: 4
+      num_workers: 8
+      number_demos: 100
+      # tasks: ["turn on the green light"]
+      # tasks: ["turn on the red light"]
+      # tasks: ["turn on the blue light"]
+      # tasks: ["stack the blue block on the green block"]
+      # tasks: ["stack the green block on the blue block"]
+      # tasks: ["unstack the green block"]
+      # tasks: ["unstack the blue block"]
+      # tasks: ["open drawer"]
+      tasks: ["move slider right"]
 
 logger:
   id: single_task_goal_cond_bc
 
 trainer:
   devices: -1
-  max_epochs: 400
+  max_epochs: 800
 
 model:
   action_decoder:

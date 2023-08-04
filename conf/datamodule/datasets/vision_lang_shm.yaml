@@ -1,3 +1,4 @@
 defaults:
   - vision_dataset: vision_shm
   - lang_dataset: lang_shm
+  - shared_memory_loader: default_loader
