@@ -220,6 +220,7 @@ def load_dataset_statistics(train_dataset_dir, val_dataset_dir, transforms):
                         exists = False
                         for i, conf_trans in enumerate(conf_transforms):
                             conf_trans["_target_"] = conf_trans["_target_"].replace("calvin_agent", "hulc2")
+                            print(dataset_trans, "#", conf_trans)
                             if dataset_trans["_target_"] == conf_trans["_target_"]:
                                 exists = True
                                 transforms[dataset_type][modality][i] = dataset_trans

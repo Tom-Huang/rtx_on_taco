@@ -46,6 +46,7 @@ def main(cfg: DictConfig) -> None:
     print("Saving data")
     save_path = path.parent / ".." / cfg.name_folder
     save_path.mkdir(exist_ok=True)
+    print("Save to ", save_path.as_posix())
     np.save(save_path / "auto_lang_ann.npy", data)
 
     if "validation" in cfg.path:

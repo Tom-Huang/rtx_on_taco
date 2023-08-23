@@ -1,0 +1,11 @@
+_target_: hulc2.models.perceptual_encoders.concat_encoders.ConcatEncoders
+_recursive_: false
+views_num: 3
+
+defaults:
+ - rgb_static: nerf
+ - rgb_gripper: none
+ - depth_static: none
+ - depth_gripper: none
+ - proprio: none
+ - tactile: none

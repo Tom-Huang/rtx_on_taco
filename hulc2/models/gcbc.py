@@ -92,8 +92,8 @@ class GCBC(Hulc2):
             perceptual_emb = self.perceptual_encoder(
                 dataset_batch["rgb_obs"], dataset_batch["depth_obs"], dataset_batch["robot_obs"]
             )
-            if self.state_recons:
-                proprio_loss += self.perceptual_encoder.state_reconstruction_loss()
+            # if self.state_recons:
+            #     proprio_loss += self.perceptual_encoder.state_reconstruction_loss()
             if "lang" in self.modality_scope:
                 latent_goal = self.language_goal(dataset_batch["lang"])
             else:
@@ -110,16 +110,16 @@ class GCBC(Hulc2):
                     batch_size["aux_lang"] = 1
                 else:
                     batch_size["aux_lang"] = torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach()  # type:ignore
-                    if self.lang_recons:
-                        lang_pred_loss += self.lang_regression_loss(
-                            seq_feat, dataset_batch["lang"], dataset_batch["use_for_aux_lang_loss"]
-                        )
+                    # if self.lang_recons:
+                    #     lang_pred_loss += self.lang_regression_loss(
+                    #         seq_feat, dataset_batch["lang"], dataset_batch["use_for_aux_lang_loss"]
+                    #     )
                     if self.use_clip_auxiliary_loss:
                         lang_clip_loss += self.clip_loss(seq_feat, latent_goal, dataset_batch["use_for_aux_lang_loss"])
-                    if self.lang_contrastive:
-                        lang_contrastive_loss += self.contrastive_lang_loss(
-                            seq_feat, latent_goal, dataset_batch["use_for_aux_lang_loss"]
-                        )
+                    # if self.lang_contrastive:
+                    #     lang_contrastive_loss += self.contrastive_lang_loss(
+                    #         seq_feat, latent_goal, dataset_batch["use_for_aux_lang_loss"]
+                    #     )
             action_loss += act_loss
             total_loss += act_loss
             batch_size[self.modality_scope] = dataset_batch["actions"].shape[0]
@@ -134,36 +134,36 @@ class GCBC(Hulc2):
             )
         total_loss = total_loss / len(batch)  # divide accumulated gradients by number of datasets
         action_loss = action_loss / len(batch)
-        if self.state_recons:
-            proprio_loss = proprio_loss / len(batch)
-            total_loss = total_loss + self.st_recon_beta * proprio_loss
-            self.log(
-                "train/pred_proprio",
-                self.st_recon_beta * proprio_loss,
-                on_step=False,
-                on_epoch=True,
-                batch_size=total_bs,
-            )
-        if self.lang_recons:
-            total_loss = total_loss + self.lang_recon_beta * lang_pred_loss
-            self.log(
-                "train/pred_lang",
-                self.lang_recon_beta * lang_pred_loss,
-                on_step=False,
-                on_epoch=True,
-                batch_size=batch_size["aux_lang"],
-                sync_dist=True,
-            )
-        if self.lang_contrastive:
-            total_loss = total_loss + self.lang_contrastive_beta * lang_contrastive_loss
-            self.log(
-                "train/lang_contrastive",
-                self.lang_contrastive_beta * lang_contrastive_loss,
-                on_step=False,
-                on_epoch=True,
-                batch_size=batch_size["aux_lang"],
-                sync_dist=True,
-            )
+        # if self.state_recons:
+        #     proprio_loss = proprio_loss / len(batch)
+        #     total_loss = total_loss + self.st_recon_beta * proprio_loss
+        #     self.log(
+        #         "train/pred_proprio",
+        #         self.st_recon_beta * proprio_loss,
+        #         on_step=False,
+        #         on_epoch=True,
+        #         batch_size=total_bs,
+        #     )
+        # if self.lang_recons:
+        #     total_loss = total_loss + self.lang_recon_beta * lang_pred_loss
+        #     self.log(
+        #         "train/pred_lang",
+        #         self.lang_recon_beta * lang_pred_loss,
+        #         on_step=False,
+        #         on_epoch=True,
+        #         batch_size=batch_size["aux_lang"],
+        #         sync_dist=True,
+        #     )
+        # if self.lang_contrastive:
+        #     total_loss = total_loss + self.lang_contrastive_beta * lang_contrastive_loss
+        #     self.log(
+        #         "train/lang_contrastive",
+        #         self.lang_contrastive_beta * lang_contrastive_loss,
+        #         on_step=False,
+        #         on_epoch=True,
+        #         batch_size=batch_size["aux_lang"],
+        #         sync_dist=True,
+        #     )
         if self.use_clip_auxiliary_loss:
             total_loss = total_loss + self.clip_auxiliary_loss_beta * lang_clip_loss
             self.log(
@@ -214,9 +214,9 @@ class GCBC(Hulc2):
             perceptual_emb = self.perceptual_encoder(
                 dataset_batch["rgb_obs"], dataset_batch["depth_obs"], dataset_batch["robot_obs"]
             )
-            if self.state_recons:
-                state_recon_loss = self.perceptual_encoder.state_reconstruction_loss()
-                self.log(f"val/proprio_loss_{self.modality_scope}", state_recon_loss, sync_dist=True)
+            # if self.state_recons:
+            #     state_recon_loss = self.perceptual_encoder.state_reconstruction_loss()
+            #     self.log(f"val/proprio_loss_{self.modality_scope}", state_recon_loss, sync_dist=True)
             if "lang" in self.modality_scope:
                 latent_goal = self.language_goal(dataset_batch["lang"])
             else:
@@ -242,20 +242,20 @@ class GCBC(Hulc2):
             _, seq_feat = self.plan_recognition(perceptual_emb)
 
             if "lang" in self.modality_scope:
-                if self.lang_recons:
-                    val_pred_lang_loss = self.lang_regression_loss(
-                        seq_feat, dataset_batch["lang"], dataset_batch["use_for_aux_lang_loss"]
-                    )
-                    self.log("val/lang_pred_loss", val_pred_lang_loss, sync_dist=True)
+                # if self.lang_recons:
+                #     val_pred_lang_loss = self.lang_regression_loss(
+                #         seq_feat, dataset_batch["lang"], dataset_batch["use_for_aux_lang_loss"]
+                #     )
+                #     self.log("val/lang_pred_loss", val_pred_lang_loss, sync_dist=True)
                 if self.use_clip_auxiliary_loss:
                     val_pred_clip_loss = self.clip_loss(seq_feat, latent_goal, dataset_batch["use_for_aux_lang_loss"])
                     self.log("val/val_pred_clip_loss", val_pred_clip_loss, sync_dist=True)
                     self.clip_groundtruth(seq_feat, dataset_batch["idx"], dataset_batch["use_for_aux_lang_loss"])
-                if self.lang_contrastive:
-                    val_pred_contrastive_loss = self.contrastive_lang_loss(
-                        seq_feat, latent_goal, dataset_batch["use_for_aux_lang_loss"]
-                    )
-                    self.log("val/lang_contrastive_loss", val_pred_contrastive_loss, sync_dist=True)
+                # if self.lang_contrastive:
+                #     val_pred_contrastive_loss = self.contrastive_lang_loss(
+                #         seq_feat, latent_goal, dataset_batch["use_for_aux_lang_loss"]
+                #     )
+                #     self.log("val/lang_contrastive_loss", val_pred_contrastive_loss, sync_dist=True)
             val_total_act_loss += action_loss
             mae_mean = mae.mean()
             pos_mae = mae[..., :3].mean()

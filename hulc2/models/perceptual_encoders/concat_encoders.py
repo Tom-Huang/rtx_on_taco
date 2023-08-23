@@ -18,13 +18,15 @@ class ConcatEncoders(nn.Module):
         depth_gripper: Optional[DictConfig] = None,
         tactile: Optional[DictConfig] = None,
         state_decoder: Optional[DictConfig] = None,
+        views_num: int = 1,
     ):
         super().__init__()
-        self._latent_size = rgb_static.visual_features
+        self.vn = views_num
+        self._latent_size = rgb_static.visual_features * self.vn
         if rgb_gripper:
             self._latent_size += rgb_gripper.visual_features
         if depth_static:
-            self._latent_size += depth_static.visual_features
+            self._latent_size += depth_static.visual_features * self.vn
         if depth_gripper:
             self._latent_size += depth_gripper.visual_features
         if tactile:
@@ -59,23 +61,44 @@ class ConcatEncoders(nn.Module):
     def forward(
         self, imgs: Dict[str, torch.Tensor], depth_imgs: Dict[str, torch.Tensor], state_obs: torch.Tensor
     ) -> torch.Tensor:
-        rgb_static = imgs["rgb_static"]
+        # handle multiview images
+        views_num = len([1 for k in imgs.keys() if "rgb_static" in k])
+        if views_num > 1:
+            # (bs, seq_num, vn, h, w)
+            rgb_static = torch.concat([imgs[f"rgb_static_{i}"].unsqueeze(2) for i in range(views_num)], dim=2)
+            # (bs, seq_num, vn, h, w)
+            depth_static = (
+                torch.concat([depth_imgs[f"depth_static_{i}"].unsqueeze(2) for i in range(views_num)], dim=2)
+                if "depth_static_0" in depth_imgs
+                else None
+            )
+        else:
+            rgb_static = imgs["rgb_static"]
+            depth_static = depth_imgs["depth_static"] if "depth_static" in depth_imgs else None
         rgb_gripper = imgs["rgb_gripper"] if "rgb_gripper" in imgs else None
         rgb_tactile = imgs["rgb_tactile"] if "rgb_tactile" in imgs else None
-        depth_static = depth_imgs["depth_static"] if "depth_static" in depth_imgs else None
         depth_gripper = depth_imgs["depth_gripper"] if "depth_gripper" in depth_imgs else None
 
-        b, s, c, h, w = rgb_static.shape
-        rgb_static = rgb_static.reshape(-1, c, h, w)  # (batch_size * sequence_length, 3, 200, 200)
+        if views_num > 1:
+            b, s, vn, c, h, w = rgb_static.shape  # (batch_size, seq_num, views_num, channel, height, width)
+        else:
+            b, s, c, h, w = rgb_static.shape
+        rgb_static = rgb_static.reshape(
+            -1, c, h, w
+        ).contiguous()  # (batch_size * sequence_length, 3, 200, 200) or (batch_size * sequence_length * views_num, 3, 200, 200)
         # ------------ Vision Network ------------ #
-        encoded_imgs = self.rgb_static_encoder(rgb_static)  # (batch*seq_len, 64)
-        encoded_imgs = encoded_imgs.reshape(b, s, -1)  # (batch, seq, 64)
+        # (batch*seq_len, 64) or (batch_size * sequence_length * views_num, 64)
+        encoded_imgs = self.rgb_static_encoder(rgb_static)
+        encoded_imgs = encoded_imgs.reshape(b, s, -1)  # (batch, seq, 64) or (batch, seq, 64 * views_num)
 
         if depth_static is not None:
-            depth_static = torch.unsqueeze(depth_static, 2)
-            depth_static = depth_static.reshape(-1, 1, h, w)  # (batch_size * sequence_length, 3, 200, 200)
-            encoded_depth_static = self.depth_static_encoder(depth_static)  # (batch*seq_len, 64)
-            encoded_depth_static = encoded_depth_static.reshape(b, s, -1)  # (batch, seq, 64)
+            if views_num == 1:
+                depth_static = torch.unsqueeze(depth_static, 2)  # (batch_size, sequence_length, 1, 200, 200)
+            # (batch_size * sequence_length, 1, 200, 200) or (batch_size * sequence_length * vn, 1, 200, 200)
+            depth_static = depth_static.reshape(-1, 1, h, w).contiguous()
+
+            encoded_depth_static = self.depth_static_encoder(depth_static)  # (bs*seq_len, 64) or (bs*seq_len*vn, 64)
+            encoded_depth_static = encoded_depth_static.reshape(b, s, -1)  # (bs, seq_len, 64) or (bs, seq_len, 64 * vn)
             encoded_imgs = torch.cat([encoded_imgs, encoded_depth_static], dim=-1)
 
         if rgb_gripper is not None:

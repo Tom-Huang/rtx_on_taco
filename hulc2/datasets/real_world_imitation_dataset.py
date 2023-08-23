@@ -112,7 +112,8 @@ class RealWorldImitationDataset(BaseDataset):
         episode: dict of numpy arrays containing the episode where keys are the names of modalities
         """
         keys = list(chain(*self.observation_space.values()))
-        keys.remove("language")
+        if "language" in keys:
+            keys.remove("language")
         # keys.append("scene_obs")
         episodes = [self.load_episode(self.get_episode_name(file_idx)) for file_idx in range(start_idx, end_idx)]
         episode = {key: np.stack([ep[key] for ep in episodes]) for key in keys}

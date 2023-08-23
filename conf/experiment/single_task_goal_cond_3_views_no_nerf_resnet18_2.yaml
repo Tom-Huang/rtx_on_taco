@@ -1,0 +1,52 @@
+# @package _global_
+# work with cfg_low_level_rw_lang_only
+defaults:
+  - override /model: gcbc_rw
+  - override /model/perceptual_encoder: multiview
+  - override /model/perceptual_encoder/rgb_static: nerf_resnet18
+  - override /model/language_encoder: none
+  - override /datamodule/datasets: real_world_imitation_task
+  - override /datamodule/observation_space: rgb_static_3_rel_gripper_act
+  - override /datamodule/transforms: real_world_3_views
+  - _self_
+
+datamodule:
+  root_data_dir: "/export/home/huang/multiview_processed_15hz/push_the_blue_block_to_the_right_processed_15hz/"
+  datasets:
+    real_world_imitation_dataset:
+      batch_size: 8
+      num_workers: 8
+      number_demos: 100
+      # tasks: ["turn on the green light"]
+      tasks: ["push the blue block to the right"]
+      # tasks: ["turn on the blue light"]
+      # tasks: ["stack the blue block on the green block"]
+      # tasks: ["stack the green block on the blue block"]
+      # tasks: ["unstack the green block"]
+      # tasks: ["unstack the blue block"]
+      # tasks: ["open the drawer"]
+      # tasks: ["move slider right"]
+
+logger:
+  project: "nerf_manipulation_bc"
+  group: gcbc
+  name: push_the_blue_block_to_the_right
+  id: single_task_goal_cond_3_views_bc
+
+trainer:
+  devices: 1
+  max_epochs: 2000
+
+model:
+  action_decoder:
+    perceptual_emb_slice: [0,192]
+  plan_recognition:
+    max_position_embeddings: 32
+  perceptual_encoder:
+    rgb_static:
+      load_ckpt_path: ""
+  
+callbacks:
+  checkpoint:
+    save_top_k: 5
+    monitor: "val_act/action_loss"

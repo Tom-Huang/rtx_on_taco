@@ -1,15 +1,22 @@
+import sys
 import argparse
 from pathlib import Path
 from typing import Dict
 
 import numpy as np
 import tqdm
+import yaml
 
 import hulc2
 from hulc2.datasets.base_dataset import load_npz, load_pkl
 
 # TRAINING_DIR: str = "training"
 TRAINING_DIR: str = ""
+
+
+def write_yaml(save_path: Path, data: Dict):
+    with open(save_path, "w") as f:
+        yaml.dump(data, f)
 
 
 def main(input_params: Dict) -> None:
@@ -22,7 +29,7 @@ def main(input_params: Dict) -> None:
             load_episode = load_pkl
         elif save_format == "npz":
             load_episode = load_npz
-        glob_generator = training_folder.glob(f"*.{save_format}")
+        glob_generator = training_folder.glob(f"episode_*.{save_format}")
         file_names = [x for x in glob_generator if x.is_file()]
         print(f"found training folder {training_folder} with {len(file_names)} files")
         acc_robot_state = np.zeros((), "float64")
@@ -71,6 +78,21 @@ def main(input_params: Dict) -> None:
         act_min_bounds = np.min(acc_actions, 0)
         print(f"min action bounds: {repr(act_min_bounds)}")
         print(f"max action bounds: {repr(act_max_bounds)}")
+
+        data = {
+            "robot_obs": [
+                {
+                    "_target_": "calvin_agent.utils.transforms.NormalizeVector",
+                    "mean": mean_robot_obs.tolist(),
+                    "std": std_robot_obs.tolist(),
+                }
+            ],
+            "action_min_bound": act_min_bounds.tolist(),
+            "action_max_bound": act_max_bounds.tolist(),
+        }
+
+        stats_save_path = training_folder / "statistics.yaml"
+        write_yaml(stats_save_path, data)
 
 
 if __name__ == "__main__":

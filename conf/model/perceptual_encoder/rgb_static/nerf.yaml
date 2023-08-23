@@ -1,0 +1,13 @@
+_target_: hulc2.models.perceptual_encoders.nerf_encoder.PixelNeRFEncoder
+backbone: "resnet34"
+pretrained: True
+num_layers: 4
+index_interp: "bilinear"
+index_padding: "border"
+upsample_interp: "bilinear"
+feature_scale: 1.0
+use_first_pool: True
+norm_type: "batch"
+visual_features: 64
+load_ckpt_path: ""
+freeze_backbone: True
