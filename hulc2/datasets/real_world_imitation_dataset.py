@@ -34,10 +34,12 @@ class RealWorldImitationDataset(BaseDataset):
         act_max_bound: Union[List[float], ListConfig],
         act_min_bound: Union[List[float], ListConfig],
         skip_frames: int = 1,
+        split_dict: Dict = {},
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
         self.skip_frames = skip_frames
+        self.split_dict = split_dict
         (self.episode_lookup, self.episode_len_lookup) = self._build_file_indices_lang_task_demo(  # type: ignore
             self.abs_datasets_dir, tasks, number_demos
         )
@@ -182,6 +184,11 @@ class RealWorldImitationDataset(BaseDataset):
         lang_emb = lang_data["language"]["emb"]  # length total number of annotations
         lang_text = lang_data["language"]["ann"]
         lang_task = lang_data["language"]["task"]
+
+        split_ids = np.array(self.split_dict[self.split]).flatten().astype(np.int32)
+        ep_start_end_ids = [ep_start_end_ids[x] for x in split_ids]
+        lang_text = [lang_text[x] for x in split_ids]
+
         lang_lookup = []
         episode_len_lookup = []
         tasks_counter: Dict = defaultdict(int)
@@ -203,4 +210,5 @@ class RealWorldImitationDataset(BaseDataset):
             if len(episode_len_lookup) >= number_demos * len(tasks):
                 break
 
+        logger.info(f"In total {len(episode_lookup)} samples in the {self.split} dataset")
         return np.array(episode_lookup), np.array(episode_len_lookup)  # , lang_lookup, lang_emb, lang_text

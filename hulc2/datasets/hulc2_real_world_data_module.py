@@ -51,6 +51,16 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
         if "root_data_dirs_list" in kwargs:
             self.root_data_dirs = kwargs["root_data_dirs_list"]
 
+        if "lang_dataset" in self.datasets_cfg:
+            split_dict = self._split_lang_dataset(self.root_data_path)
+            self.split_dict = split_dict
+        elif "vis_dataset" in self.datasets_cfg:
+            split_dict = self._split_vis_dataset(self.root_data_path)
+            self.split_dict = split_dict
+        elif "real_world_imitation_dataset" in self.datasets_cfg:
+            split_dict = self._split_imit_dataset(self.root_data_path)
+            self.split_dict = split_dict
+
     def prepare_data(self, *args, **kwargs):
         # check if files already exist
         dataset_exist = np.any([len(list(self.root_data_path.glob(extension))) for extension in ["*.npz", "*.pkl"]])
@@ -64,21 +74,18 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
         if self.use_shm:
             additional_args = {}
 
-        if "lang_dataset" in self.datasets_cfg:
-            split_dict = self._split_lang_dataset(self.root_data_path)
-
         if self.use_shm:
             train_shmem_loader = SharedMemoryLoaderLangOnly(
                 datasets_cfg=self.datasets_cfg,
                 dataset_dir=self.root_data_path,
                 split="training",
-                split_dict=split_dict,
+                split_dict=self.split_dict,
             )
             val_shmem_loader = SharedMemoryLoaderLangOnly(
                 datasets_cfg=self.datasets_cfg,
                 dataset_dir=self.root_data_path,
                 split="validation",
-                split_dict=split_dict,
+                split_dict=self.split_dict,
             )
 
             train_shm_lookup = train_shmem_loader.load_data_in_shared_memory()
@@ -107,14 +114,21 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
             train_shm_lookup, val_shm_lookup = load_lang_data()
 
         for _, dataset in self.datasets_cfg.items():
-            print(dataset._target_)
             if "Dataset" not in dataset._target_:
                 continue
             train_dataset = hydra.utils.instantiate(
-                dataset, datasets_dir=self.root_data_path, transforms=self.train_transforms, split="training"
+                dataset,
+                datasets_dir=self.root_data_path,
+                transforms=self.train_transforms,
+                split="training",
+                split_dict=self.split_dict,
             )
             val_dataset = hydra.utils.instantiate(
-                dataset, datasets_dir=self.root_data_path, transforms=self.val_transforms, split="validation"
+                dataset,
+                datasets_dir=self.root_data_path,
+                transforms=self.val_transforms,
+                split="validation",
+                split_dict=self.split_dict,
             )
             if self.use_shm:
                 train_dataset.set_lang_data(train_shm_lookup)
@@ -130,8 +144,8 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
                 dataset,
                 batch_size=dataset.batch_size,
                 num_workers=dataset.num_workers,
-                # pin_memory=False,
-                pin_memory=True,
+                pin_memory=False,
+                # pin_memory=True,
             )
             for key, dataset in self.train_datasets.items()
         }
@@ -142,8 +156,8 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
                 dataset,
                 batch_size=dataset.batch_size,
                 num_workers=dataset.num_workers,
-                # pin_memory=False,
-                pin_memory=True,
+                pin_memory=False,
+                # pin_memory=True,
             )
             for key, dataset in self.val_datasets.items()
         }
@@ -152,6 +166,23 @@ class Hulc2RealWorldDataModule(pl.LightningDataModule):
 
     def _split_lang_dataset(self, root_data_path, train_portion=0.9):
         self.lang_folder = self.datasets_cfg.lang_dataset.lang_folder
+        lang_data = np.load(root_data_path / self.lang_folder / "auto_lang_ann.npy", allow_pickle=True).item()
+        ids = np.arange(len(lang_data["info"]["indx"]))
+        np.random.shuffle(ids)
+        val_split_id_start = int(ids.shape[0] * train_portion)
+
+        return {"training": ids[:val_split_id_start], "validation": ids[val_split_id_start:]}
+
+    def _split_vis_dataset(self, root_data_path, train_portion=0.9):
+        ep_data = np.load(root_data_path / "ep_start_end_ids.npy")
+        ids = np.arange(len(ep_data))
+        np.random.shuffle(ids)
+        val_split_id_start = int(ids.shape[0] * train_portion)
+
+        return {"training": ids[:val_split_id_start], "validation": ids[val_split_id_start:]}
+
+    def _split_imit_dataset(self, root_data_path, train_portion=0.9):
+        self.lang_folder = self.datasets_cfg.real_world_imitation_dataset.lang_folder
         lang_data = np.load(root_data_path / self.lang_folder / "auto_lang_ann.npy", allow_pickle=True).item()
         ids = np.arange(len(lang_data["info"]["indx"]))
         np.random.shuffle(ids)

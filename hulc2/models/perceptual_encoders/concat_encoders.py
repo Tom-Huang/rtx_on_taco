@@ -73,8 +73,12 @@ class ConcatEncoders(nn.Module):
                 else None
             )
         else:
-            rgb_static = imgs["rgb_static"]
-            depth_static = depth_imgs["depth_static"] if "depth_static" in depth_imgs else None
+            if "rgb_static_0" in imgs:
+                rgb_static = imgs["rgb_static_0"]
+                depth_static = depth_imgs["depth_static_0"] if "depth_static_0" in depth_imgs else None
+            else:
+                rgb_static = imgs["rgb_static"]
+                depth_static = depth_imgs["depth_static"] if "depth_static" in depth_imgs else None
         rgb_gripper = imgs["rgb_gripper"] if "rgb_gripper" in imgs else None
         rgb_tactile = imgs["rgb_tactile"] if "rgb_tactile" in imgs else None
         depth_gripper = depth_imgs["depth_gripper"] if "depth_gripper" in depth_imgs else None

@@ -42,8 +42,11 @@ class PixelNeRFEncoder(torch.nn.Module):
         for param in self.model.parameters():
             param.requires_grad = False
         if not freeze_backbone:
-            for param in self.model.parameters():
+            for param in self.model.layer4.parameters():
                 param.requires_grad = True
+        # if not freeze_backbone:
+        #     for param in self.model.parameters():
+        #         param.requires_grad = True
 
         self.num_layers = num_layers
         self.index_interp = index_interp
