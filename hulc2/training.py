@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sys
 from typing import Callable, List, Union
+import wandb
 
 sys.path.insert(0, Path(__file__).absolute().parents[1].as_posix())
 import importlib
@@ -16,6 +17,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import LightningLoggerBase
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_only
+from torch import distributed
 
 from hulc2.utils.utils import (
     get_git_commit_hash,
@@ -37,7 +39,9 @@ def train(cfg: DictConfig) -> None:
     """
     # sets seeds for numpy, torch, python.random and PYTHONHASHSEED.
     seed_everything(cfg.seed, workers=True)  # type: ignore
+    logger.info("seeded")
     datamodule = hydra.utils.instantiate(cfg.datamodule)
+    logger.info("initialized datamodule")
     chk = get_last_checkpoint(Path.cwd())
 
     # Load Model
@@ -49,6 +53,7 @@ def train(cfg: DictConfig) -> None:
         model = getattr(models_m, model_name).load_from_checkpoint(chk.as_posix())
     else:
         model = hydra.utils.instantiate(cfg.model)
+        logger.info("initialized model")
         if "pretrain_chk" in cfg:
             initialize_pretrained_weights(model, cfg)
 
@@ -71,6 +76,7 @@ def train(cfg: DictConfig) -> None:
 
     # Configure multi-GPU training
     if is_multi_gpu_training(trainer_args["devices"]):  # type: ignore
+        logger.info("is multi gpu training")
         trainer_args["strategy"] = DDPStrategy(
             static_graph=True, find_unused_parameters=False, timeout=timedelta(seconds=3600)
         )
@@ -78,9 +84,26 @@ def train(cfg: DictConfig) -> None:
             modify_argv_hydra()
 
     trainer = Trainer(**trainer_args)
+    logger.info("initialized trainer")
+    logger.info("NCCL_P2P_DISABLE: ")
+    logger.info(os.environ["NCCL_P2P_DISABLE"])
 
     # Start training
     trainer.fit(model, datamodule=datamodule, ckpt_path=chk)  # type: ignore
+    if distributed.is_initialized():
+        distributed.destroy_process_group()
+
+    # os.environ.pop("LOCAL_RANK", None)
+    envs = (
+        "LOCAL_RANK",
+        "NODE_RANK",
+        "WORLD_SIZE",
+        "MASTER_ADDR",
+        "MASTER_PORT",
+    )
+
+    for name in envs:
+        os.environ.pop(name, None)
 
 
 def setup_callbacks(callbacks_cfg: DictConfig) -> List[Callback]:

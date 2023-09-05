@@ -3,7 +3,7 @@
 defaults:
   - override /model: gcbc_rw
   - override /model/perceptual_encoder: multiview
-  - override /model/perceptual_encoder/rgb_static: resnet
+  - override /model/perceptual_encoder/rgb_static: vision_nerf
   - override /model/language_encoder: none
   - override /datamodule/datasets: real_world_imitation_task
   - override /datamodule/observation_space: rgb_static_3_rel_gripper_act
@@ -46,8 +46,10 @@ model:
     max_position_embeddings: 32
   perceptual_encoder:
     views_num: 3
+    rgb_static:
+      freeze_backbone: False
+      load_ckpt_path: "/home/huang/hcg/projects/nerf/data/pixelnerf_ckpts/checkpoints/open_the_drawer_nv2_resnet18/pixel_nerf_latest"
   #   rgb_static:
-  #     load_ckpt_path: ""
   
 # callbacks:
 #   checkpoint:

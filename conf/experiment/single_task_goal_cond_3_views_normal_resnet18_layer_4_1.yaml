@@ -33,11 +33,12 @@ logger:
   project: "nerf_manipulation_bc"
   group: gcbc
   name: open_the_drawer
-  id: rn18_imagenet_normal_1v
+  id: rn18_imagenet_normal_3v
 
 trainer:
   devices: -1
-  max_epochs: 1000
+  max_epochs: 2000
+  # limit_train_batches: 1
 
 model:
   action_decoder:
@@ -46,6 +47,8 @@ model:
     max_position_embeddings: 32
   perceptual_encoder:
     views_num: 3
+    rgb_static:
+      freeze_backbone: False
   #   rgb_static:
   #     load_ckpt_path: ""
   

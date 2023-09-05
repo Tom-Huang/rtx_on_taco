@@ -91,6 +91,8 @@ class Hulc2(pl.LightningModule):
         # policy network
         self.action_decoder: ActionDecoder = hydra.utils.instantiate(action_decoder)
 
+        self.remove_modules()
+
         # auxiliary losses
         self.use_clip_auxiliary_loss = use_clip_auxiliary_loss
         self.clip_auxiliary_loss_beta = clip_auxiliary_loss_beta
@@ -122,6 +124,9 @@ class Hulc2(pl.LightningModule):
             self.train_lang_task_ids: Optional[np.ndarray] = None
             self.val_lang_ann: Optional[torch.Tensor] = None
             self.val_lang_task_ids: Optional[np.ndarray] = None
+
+    def remove_modules(self):
+        pass
 
     @staticmethod
     def setup_input_sizes(

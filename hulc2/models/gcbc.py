@@ -13,6 +13,11 @@ class GCBC(Hulc2):
     Goal-conditioned behavior cloning.
     """
 
+    def remove_modules(self):
+        self.plan_proposal = None
+        self.plan_recognition = None
+        self.language_goal = None
+
     @staticmethod
     def setup_input_sizes(
         perceptual_encoder,
@@ -103,9 +108,9 @@ class GCBC(Hulc2):
             actions = dataset_batch["actions"]
             empty_plan = torch.empty((dataset_batch["actions"].shape[0]), 0).to(self.device)
             act_loss = self.action_decoder.loss(empty_plan, perceptual_emb, latent_goal, actions, robot_obs)
-            _, seq_feat = self.plan_recognition(perceptual_emb)
 
             if "lang" in self.modality_scope:
+                _, seq_feat = self.plan_recognition(perceptual_emb)
                 if not torch.any(dataset_batch["use_for_aux_lang_loss"]):
                     batch_size["aux_lang"] = 1
                 else:
@@ -239,9 +244,9 @@ class GCBC(Hulc2):
             gripper_discrete[m] = 1
             gripper_discrete[~m] = -1
             gripper_sr = torch.mean((gt_gripper_act == gripper_discrete).float())
-            _, seq_feat = self.plan_recognition(perceptual_emb)
 
             if "lang" in self.modality_scope:
+                _, seq_feat = self.plan_recognition(perceptual_emb)
                 # if self.lang_recons:
                 #     val_pred_lang_loss = self.lang_regression_loss(
                 #         seq_feat, dataset_batch["lang"], dataset_batch["use_for_aux_lang_loss"]

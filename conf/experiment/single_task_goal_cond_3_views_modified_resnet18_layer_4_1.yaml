@@ -3,7 +3,7 @@
 defaults:
   - override /model: gcbc_rw
   - override /model/perceptual_encoder: multiview
-  - override /model/perceptual_encoder/rgb_static: resnet
+  - override /model/perceptual_encoder/rgb_static: nerf_resnet18
   - override /model/language_encoder: none
   - override /datamodule/datasets: real_world_imitation_task
   - override /datamodule/observation_space: rgb_static_3_rel_gripper_act
@@ -33,7 +33,7 @@ logger:
   project: "nerf_manipulation_bc"
   group: gcbc
   name: open_the_drawer
-  id: rn18_imagenet_normal_1v
+  id: rn18_imagenet_modified_3v
 
 trainer:
   devices: -1
@@ -46,8 +46,10 @@ model:
     max_position_embeddings: 32
   perceptual_encoder:
     views_num: 3
+    rgb_static:
+      freeze_backbone: False
+      load_ckpt_path: ""
   #   rgb_static:
-  #     load_ckpt_path: ""
   
 # callbacks:
 #   checkpoint:

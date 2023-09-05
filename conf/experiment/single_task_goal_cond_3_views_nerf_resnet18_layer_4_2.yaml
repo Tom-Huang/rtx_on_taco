@@ -3,7 +3,7 @@
 defaults:
   - override /model: gcbc_rw
   - override /model/perceptual_encoder: multiview
-  - override /model/perceptual_encoder/rgb_static: resnet
+  - override /model/perceptual_encoder/rgb_static: vision_nerf
   - override /model/language_encoder: none
   - override /datamodule/datasets: real_world_imitation_task
   - override /datamodule/observation_space: rgb_static_3_rel_gripper_act
@@ -12,7 +12,7 @@ defaults:
   - _self_
 
 datamodule:
-  root_data_dir: "/export/home/huang/multiview_processed_15hz/open_the_drawer_processed_15hz/"
+  root_data_dir: "/export/home/huang/multiview_processed_15hz/push_the_blue_block_to_the_right_processed_15hz/"
   datasets:
     real_world_imitation_dataset:
       min_window_size: 20
@@ -21,19 +21,20 @@ datamodule:
       number_demos: 100
       # tasks: ["turn on the green light"]
       # tasks: ["turn on the red light"]
+      tasks: ["push the blue block to the right"]
       # tasks: ["turn on the blue light"]
       # tasks: ["stack the blue block on the green block"]
       # tasks: ["stack the green block on the blue block"]
       # tasks: ["unstack the green block"]
       # tasks: ["unstack the blue block"]
-      tasks: ["open the drawer"]
+      # tasks: ["open the drawer"]
       # tasks: ["move slider right"]
 
 logger:
   project: "nerf_manipulation_bc"
   group: gcbc
   name: open_the_drawer
-  id: rn18_imagenet_normal_1v
+  id: rn18_imagenet_normal_3v
 
 trainer:
   devices: -1
@@ -46,8 +47,10 @@ model:
     max_position_embeddings: 32
   perceptual_encoder:
     views_num: 3
+    rgb_static:
+      freeze_backbone: False
+      load_ckpt_path: "/home/huang/hcg/projects/nerf/data/pixelnerf_ckpts/checkpoints/push_the_blue_block_to_the_right_nv2_resnet18/pixel_nerf_latest"
   #   rgb_static:
-  #     load_ckpt_path: ""
   
 # callbacks:
 #   checkpoint:
