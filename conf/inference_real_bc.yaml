@@ -1,0 +1,48 @@
+defaults:
+  - datamodule: real_world_default
+  - env: env
+  - robot: panda_frankx_interface_policy
+  - cams: camera_manager
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+seed: 42
+log_dir: ../
+slurm: false
+env:
+  freq: 15
+datamodule:
+  root_data_dir: /export/home/huang/taco_extra_processed_15hz_resize
+  root_data_dirs:
+    - /export/home/huang/taco_extra_processed_15hz_resize
+    # - /export/home/huang/500k_all_tasks_dataset_15hz
+# train_folder: /export/home/huang/bc_static_taco_extra_lang_checkpoints/r3m_backbone_adam
+# checkpoint: 286
+
+# train_folder: /export/home/huang/bc_static_taco_extra_lang_checkpoints/r3m_backbone_adamw/vis_and_lang 
+# checkpoint: 273 # 999 # 412 # 273
+
+train_folder: /export/home/huang/bc_static_taco_both_lang_checkpoints
+checkpoint: 996 # 999 # 891
+
+
+hydra:
+  searchpath:
+    - pkg://robot_io.conf
+  run:
+    dir: ${log_dir}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ${log_dir}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - log_dir
+          - datamodule.root_data_dir
+          - trainer.gpus
+          - model.tsne_plot
+          - datamodule.num_workers
+          - trainer.limit_train_batches
+          - trainer.limit_val_batches
+          - model.action_decoder.load_action_bounds

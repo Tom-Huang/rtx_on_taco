@@ -24,55 +24,29 @@ def obs_dict_to_np(robot_obs):
     return np.concatenate([tcp_pos, tcp_orn, [gripper_width], joint_positions, [gripper_action]])
 
 
-class PandaLfpWrapper(gym.Wrapper):
+class PandaRTXWrapper(gym.Wrapper):
+    """
+    Compared to PandaLfpWrapper, this wrapper doesn't require dataset input, doesn't apply transform
+    to observation return
+    """
+
     def __init__(
         self,
         env: RobotEnv,
-        dataset: BaseDataset,
+        relative_action: bool = True,
         device: str = "cuda:0",
         max_rel_pos: float = 0.02,
         max_rel_orn: float = 0.05,
         **kwargs: Any,
     ) -> None:
-        super(PandaLfpWrapper, self).__init__(env)
+        super(PandaRTXWrapper, self).__init__(env)
         self.env = env
         self.max_rel_pos = max_rel_pos
         self.max_rel_orn = max_rel_orn
-        self.observation_space_keys = dataset.observation_space
-        logger.info(f"observation space: {self.observation_space_keys}")
-        self.transforms = dataset.transforms
-        self.proprio_state = dataset.proprio_state
         self.device = device
-        self.relative_actions = "rel_actions" in self.observation_space_keys["actions"][0]
-        logger.info(f"Initialized PandaLfpWrapper for device {self.device}")
+        self.relative_actions = relative_action
+        logger.info(f"Initialized PandaRTXWrapper for device {self.device}")
         logger.info(f"Relative actions: {self.relative_actions}")
-
-    def transform_vis(self, vis_goal):
-        rgb_obs = process_rgb(vis_goal["rgb_obs"], self.observation_space_keys, self.transforms)
-        rgb_obs.update({"rgb_obs": {k: v.to(self.device).unsqueeze(0) for k, v in rgb_obs["rgb_obs"].items()}})
-        state_obs = process_state(vis_goal, self.observation_space_keys, self.transforms, self.proprio_state)
-        state_obs["robot_obs"] = state_obs["robot_obs"].to(self.device).unsqueeze(0)
-        obs_dict = {**rgb_obs, **state_obs}
-        # return rgb_obs
-        return obs_dict
-
-    def transform_observation(self, obs):
-        # rename keys and concatenate
-        _obs = {}
-        _obs["robot_obs"] = obs_dict_to_np(obs["robot_state"])
-        _obs["rgb_obs"] = {k: obs[k] for k in list(obs.keys()) if k.startswith("rgb")}
-        _obs["depth_obs"] = {k: obs[k] for k in list(obs.keys()) if k.startswith("depth")}
-
-        state_obs = process_state(_obs, self.observation_space_keys, self.transforms, self.proprio_state)
-        rgb_obs = process_rgb(_obs["rgb_obs"], self.observation_space_keys, self.transforms)
-        depth_obs = process_depth(_obs["depth_obs"], self.observation_space_keys, self.transforms)
-
-        state_obs["robot_obs"] = state_obs["robot_obs"].to(self.device).unsqueeze(0)
-        rgb_obs.update({"rgb_obs": {k: v.to(self.device).unsqueeze(0) for k, v in rgb_obs["rgb_obs"].items()}})
-        depth_obs.update({"depth_obs": {k: v.to(self.device).unsqueeze(0) for k, v in depth_obs["depth_obs"].items()}})
-        obs_dict = {**rgb_obs, **state_obs, **depth_obs}
-        obs_dict["robot_obs_raw"] = torch.from_numpy(_obs["robot_obs"]).to(self.device)
-        return obs_dict
 
     def step(self, action_tensor):
         if self.relative_actions:
@@ -86,7 +60,8 @@ class PandaLfpWrapper(gym.Wrapper):
         action_dict = {"motion": action, "ref": "rel" if self.relative_actions else "abs"}
         o, r, d, i = self.env.step(action_dict)
 
-        obs = self.transform_observation(o)
+        # obs = self.transform_observation(o)
+        obs = o
         return obs, r, d, i
 
     def reset(self, episode=None, robot_obs=None, target_pos=None, target_orn=None, gripper_state="open"):
@@ -104,8 +79,10 @@ class PandaLfpWrapper(gym.Wrapper):
         else:
             obs = self.env.reset()
 
-        return self.transform_observation(obs)
+        # return self.transform_observation(obs)
+        return obs
 
     def get_obs(self):
         obs = self.env._get_obs()
-        return self.transform_observation(obs)
+        # return self.transform_observation(obs)
+        return obs

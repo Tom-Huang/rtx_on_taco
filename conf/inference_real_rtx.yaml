@@ -1,0 +1,46 @@
+defaults:
+  - env: env
+  - robot: panda_frankx_interface_policy
+  - cams: camera_manager
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - _self_
+
+# checkpoint_dir: /home/huang/hcg/projects/rtx/data/xid_58722515-20230630T124027Z-001/xid_58722515/000454440 # all-dataset chkpt 454440 
+# checkpoint_dir: /home/huang/hcg/projects/rtx/data/xid_58722515-20230630T124027Z-001/xid_58722515/000362880 # all-dataset chkpt 000362880 
+# checkpoint_dir: /home/huang/hcg/projects/rtx/data/xid_58719776-20230630T124028Z-001/xid_58719776/000454440 # all-dataset chkpt 454440 
+# checkpoint_dir: /home/huang/hcg/projects/rtx/data/xid_58719776-20230630T124028Z-001/xid_58719776/000362880 # all-dataset chkpt 000362880 
+# checkpoint_dir: /export/home/huang/rtx_checkpoints/xid_61790254-20230804T075702Z-001/xid_61790254/000453880 # new-demo only chkpt 453800
+# checkpoint_dir: /export/home/huang/rtx_checkpoints/xid_61790936-20230804T075700Z-001/xid_61790936/000318640 # new-and-old-demo only chkpt 318640
+
+checkpoint_dir: /export/home/huang/rtx_checkpoints/xid_61793897-20230822T113544Z-001/xid_61793897/001265040 # new-and-old-demo + all chkpt 
+
+
+lang_embed_url: https://tfhub.dev/google/universal-sentence-encoder-large/5
+seed: 42
+log_dir: ../
+slurm: false
+robot:
+  rel_action_params:
+    relative_action_control_frame: "world"
+
+hydra:
+  searchpath:
+    - pkg://robot_io.conf
+  run:
+    dir: ${log_dir}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ${log_dir}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - log_dir
+          - datamodule.root_data_dir
+          - trainer.gpus
+          - model.tsne_plot
+          - datamodule.num_workers
+          - trainer.limit_train_batches
+          - trainer.limit_val_batches
+          - model.action_decoder.load_action_bounds

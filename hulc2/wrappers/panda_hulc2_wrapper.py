@@ -1,6 +1,7 @@
 import logging
 import os
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Tuple, Union, List
+from omegaconf import DictConfig
 
 import gym
 import numpy as np
@@ -24,24 +25,25 @@ def obs_dict_to_np(robot_obs):
     return np.concatenate([tcp_pos, tcp_orn, [gripper_width], joint_positions, [gripper_action]])
 
 
-class PandaLfpWrapper(gym.Wrapper):
+class PandaHulc2Wrapper(gym.Wrapper):
     def __init__(
         self,
         env: RobotEnv,
-        dataset: BaseDataset,
+        observation_space: DictConfig,
+        transforms: Dict,
+        proprio_state: DictConfig,
         device: str = "cuda:0",
         max_rel_pos: float = 0.02,
         max_rel_orn: float = 0.05,
         **kwargs: Any,
     ) -> None:
-        super(PandaLfpWrapper, self).__init__(env)
+        super(PandaHulc2Wrapper, self).__init__(env)
         self.env = env
         self.max_rel_pos = max_rel_pos
         self.max_rel_orn = max_rel_orn
-        self.observation_space_keys = dataset.observation_space
-        logger.info(f"observation space: {self.observation_space_keys}")
-        self.transforms = dataset.transforms
-        self.proprio_state = dataset.proprio_state
+        self.observation_space_keys = observation_space
+        self.transforms = transforms
+        self.proprio_state = proprio_state
         self.device = device
         self.relative_actions = "rel_actions" in self.observation_space_keys["actions"][0]
         logger.info(f"Initialized PandaLfpWrapper for device {self.device}")
