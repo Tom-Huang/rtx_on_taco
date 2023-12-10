@@ -217,14 +217,14 @@ def main(cfg):
     embed_model = hub.load('https://tfhub.dev/google/universal-sentence-encoder-large/5')
     print("finish loading language encoder")
 
-    # goal = "move the slider left"
+    goal = "move the slider left"
     # goal = "turn on the green light"
     # goal = "turn on the blue light"
     # goal = "turn on the red light"
     # goal = "move the slider right"
     # goal = "stack the blue block on the green block"
     # goal = "unstack the blue block"
-    goal = "open the drawer"
+    # goal = "open the drawer"
     lang_rollout(model, env, embed_model, goal, ep_len=500)
 
 

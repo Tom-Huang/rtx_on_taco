@@ -1,0 +1,39 @@
+defaults:
+  - env: env
+  - robot: panda_frankx_interface_policy
+  - cams: camera_manager
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - _self_
+
+checkpoint_dir: /home/huang/hcg/projects/orca/data/taco_play_checkpoint/
+
+
+lang_embed_url: https://tfhub.dev/google/universal-sentence-encoder-large/5
+seed: 42
+log_dir: ../
+slurm: false
+robot:
+  rel_action_params:
+    relative_action_control_frame: "world"
+
+hydra:
+  searchpath:
+    - pkg://robot_io.conf
+  run:
+    dir: ${log_dir}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ${log_dir}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - log_dir
+          - datamodule.root_data_dir
+          - trainer.gpus
+          - model.tsne_plot
+          - datamodule.num_workers
+          - trainer.limit_train_batches
+          - trainer.limit_val_batches
+          - model.action_decoder.load_action_bounds
