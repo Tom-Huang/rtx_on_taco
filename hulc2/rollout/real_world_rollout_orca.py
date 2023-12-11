@@ -24,8 +24,6 @@ from hulc2.wrappers.panda_rtx_wrapper import PandaRTXWrapper
 from hulc2.evaluation.utils import imshow_tensor
 from orca.utils.pretrained_utils import ORCAModel
 
-os.environ['JAX_PLATFORMS'] = 'cpu'  # Force on CPU
-
 
 def load_model(cfg):
     model = ORCAModel.load_pretrained(cfg.checkpoint_dir)
@@ -34,16 +32,17 @@ def load_model(cfg):
     return model, statistics
 
 
-def lang_rollout(model, env, statistics, goal, ep_len=500):
+def lang_rollout(model, env, statistics, goal, ep_len=500, pred_horizon=1, exp_weight=1, chunk=0):
     print("Type your instruction which the robot will try to follow")
     print(goal)
     task_lang = model.create_tasks(texts=[goal])
     print(task_lang)
     policy_fn = jax.jit(model.sample_actions)
-    rollout(env, policy_fn, task_lang, goal, statistics, ep_len=ep_len)
+    rollout(env, policy_fn, task_lang, goal, statistics, ep_len=ep_len,
+            pred_horizon=pred_horizon, exp_weight=exp_weight, chunk=chunk)
 
 
-def image_rollout(model, env, statistics, ep_len=500):
+def image_rollout(model, env, statistics, ep_len=500, pred_horizon=1, exp_weight=1, chunk=0):
     goal_obs = env.get_obs()
     goal_image = goal_obs["rgb_static"]
     goal_image_wrist = goal_obs["rgb_gripper"]
@@ -59,25 +58,29 @@ def image_rollout(model, env, statistics, ep_len=500):
     goal_image_wrist = goal_image_wrist[None, ...]
     task_image = model.create_tasks(goals={"image_0": goal_image, "image_1": goal_image_wrist})
     policy_fn = jax.jit(model.sample_actions)
-    rollout(env, policy_fn, task_image, "image goal", statistics, ep_len=ep_len)
+    rollout(env, policy_fn, task_image, "image goal", statistics,
+            ep_len=ep_len, pred_horizon=pred_horizon, exp_weight=exp_weight, chunk=chunk)
 
 
-def rollout(env, policy_fn, task, goal, statistics, horizon=2, ep_len=5000):
+def rollout(env, policy_fn, task, goal, statistics, horizon=2, ep_len=5000, pred_horizon=1, exp_weight=1, chunk=0):
+    ewa_action = ExpWeightedAverage(pred_horizon, exp_weight=exp_weight)
     observations = {
         "image_0": np.zeros((1, horizon, 256, 256, 3), dtype=np.uint8),  # batch, horizon, width, height, channels,
-        # optionally add "image_1": np.zeros((1, 2, 128, 128,3), dtype=np.uint8) for wrist camera
         "image_1": np.zeros((1, horizon, 128, 128, 3), dtype=np.uint8),  # for wrist camera
         "pad_mask": np.array([[True, True]])
     }
     obs_deque = collections.deque(maxlen=horizon)
     obs_deque_wrist = collections.deque(maxlen=horizon)
-    env.reset()
+    # env.reset()
+    for i in range(20):
+        act = torch.from_numpy(np.array([0, -0.5, 0, 0, 0, 0, 0]))
+        env.step(act)
     # goal_embed = embed_model([goal])[0]
     obs = env.get_obs()
     image = obs['rgb_static']
     image = cv2.resize(image, (256, 256))
     image_wrist = obs['rgb_gripper']
-    image_wrist = cv2.resize(image, (128, 128))
+    image_wrist = cv2.resize(image_wrist, (128, 128))
     # fill the deque with the first observation
     obs_deque.append(image)
     obs_deque.append(image)
@@ -102,22 +105,35 @@ def rollout(env, policy_fn, task, goal, statistics, horizon=2, ep_len=5000):
     folder = Path("/tmp") / goal_str / dt_string
     os.makedirs(folder, exist_ok=True)
 
+    chunk_step_count = 0
     for step in range(ep_len):
-        actions = policy_fn(observations, task, rng=jax.random.PRNGKey(0))
-        pred_actions = (actions[0] * np.array(statistics['action']['std'])) + np.array(statistics['action']['mean'])
-        print(pred_actions)
-        pred_action_torch = torch.from_numpy(np.asarray(pred_actions))
-        print("torch: ", pred_actions)
-        # transform the gripper action from [0, 1] to [-1, 1]
-        pred_action_torch[0][-1] = pred_action_torch[0][-1] * 2. - 1.
-        print("change: ", pred_actions)
+
+        if chunk_step_count == 0:
+            actions = policy_fn(observations, task, rng=jax.random.PRNGKey(0))
+            pred_actions = (actions[0] * np.array(statistics['action']['std'])) + np.array(statistics['action']['mean'])
+            print(pred_actions)
+            pred_action_np = np.asarray(pred_actions)
+            pred_action_np_chunk = pred_action_np.copy()
+            pred_action_np = ewa_action.get_action(pred_action_np)
+            pred_action_torch = torch.from_numpy(pred_action_np)
+            print("torch: ", pred_actions)
+            # transform the gripper action from [0, 1] to [-1, 1]
+            # pred_action_torch[0][-1] = pred_action_torch[0][-1] * 2. - 1.
+            print("change: ", pred_actions)
+            if chunk_step_count < chunk:
+                chunk_step_count += 1
+        else:
+            pred_action_torch = torch.from_numpy(pred_action_np_chunk[chunk_step_count])
+            chunk_step_count += 1
+        if chunk_step_count == chunk:
+            chunk_step_count = 0
 
         obs, _, _, _ = env.step(pred_action_torch)
 
         image = obs['rgb_static']
         image = cv2.resize(image, (256, 256))
         image_wrist = obs['rgb_gripper']
-        image_wrist = cv2.resize(image, (128, 128))
+        image_wrist = cv2.resize(image_wrist, (128, 128))
         # fill the deque with the first observation
         obs_deque.append(image)
         obs_deque_wrist.append(image_wrist)
@@ -142,6 +158,27 @@ def rollout(env, policy_fn, task, goal, statistics, horizon=2, ep_len=5000):
             return
 
 
+class ExpWeightedAverage:
+    def __init__(self, pred_horizon: int, exp_weight: int = 0):
+        self.pred_horizon = pred_horizon
+        self.exp_weight = exp_weight
+        self.act_history = collections.deque(maxlen=self.pred_horizon)
+
+    def get_action(self, actions: np.ndarray) -> np.ndarray:
+        assert len(actions) >= self.pred_horizon
+        self.act_history.append(actions[:self.pred_horizon])
+        num_actions = len(self.act_history)
+
+        curr_act_preds = np.stack([
+            pred_actions[i] for (i, pred_actions) in zip(range(num_actions - 1, -1, -1), self.act_history)
+        ])
+
+        exponents = np.exp(-self.exp_weight * np.arange(num_actions))
+        weights = exponents / np.sum(exponents)
+        action = np.sum(weights[:, None] * curr_act_preds, axis=0)
+        return action
+
+
 @hydra.main(config_path="../../conf", config_name="inference_real_orca")
 def main(cfg):
     # load robot
@@ -160,8 +197,8 @@ def main(cfg):
     # goal = "unstack the blue block"
     # goal = "open the drawer"
 
-    # lang_rollout(model, env, statistics, goal, ep_len=500)
-    image_rollout(model, env, statistics, ep_len=500)
+    # lang_rollout(model, env, statistics, goal, ep_len=500, pred_horizon=1, exp_weight=1, chunk=4)
+    image_rollout(model, env, statistics, ep_len=500, pred_horizon=1, exp_weight=1, chunk=4)
 
 
 if __name__ == "__main__":

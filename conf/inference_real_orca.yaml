@@ -6,7 +6,8 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - _self_
 
-checkpoint_dir: /home/huang/hcg/projects/orca/data/taco_play_checkpoint/
+# checkpoint_dir: /home/huang/hcg/projects/orca/data/taco_play_checkpoint/
+checkpoint_dir: /home/huang/hcg/projects/orca/data/final_diffusion_model
 
 
 lang_embed_url: https://tfhub.dev/google/universal-sentence-encoder-large/5
