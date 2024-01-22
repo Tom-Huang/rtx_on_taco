@@ -7,7 +7,12 @@ defaults:
   - _self_
 
 # checkpoint_dir: /home/huang/hcg/projects/orca/data/taco_play_checkpoint/
-checkpoint_dir: /home/huang/hcg/projects/orca/data/final_diffusion_model
+# checkpoint_dir: /home/huang/hcg/projects/orca/data/final_diffusion_model
+checkpoint_dir: /home/huang/hcg/projects/orca/data/vitb
+# checkpoint_dir: /home/huang/hcg/projects/orca/data/vits
+# checkpoint_dir: /home/huang/hcg/projects/orca/data/vit_b_taco_resume/vit_b_taco_resume_20231211_213627
+load_dir: /export/home/huang/orca/turn_on_the_green_light_test
+use_rel_actions: True
 
 
 lang_embed_url: https://tfhub.dev/google/universal-sentence-encoder-large/5
