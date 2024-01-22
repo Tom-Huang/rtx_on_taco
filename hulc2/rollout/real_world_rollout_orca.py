@@ -80,7 +80,7 @@ def load_model(cfg):
     # model = ORCAModel.load_pretrained(cfg.checkpoint_dir)
     # statistics = statistics = ORCAModel.load_dataset_statistics(cfg.checkpoint_dir, "taco_play")
     model = OctoModel.load_pretrained(cfg.checkpoint_dir)
-    statistics = model.dataset_statistics
+    statistics = model.dataset_statistics['taco_play']
 
     return model, statistics
 
@@ -115,8 +115,8 @@ def image_rollout(model, env, statistics, goal_obs=None, ep_len=500, pred_horizo
     cv2.waitKey()
     goal_image = goal_image[None, ...]
     goal_image_wrist = goal_image_wrist[None, ...]
-    task_image = model.create_tasks(goals={"image_0": goal_image, "image_1": goal_image_wrist})
-    # task_image = model.create_tasks(goals={"image_0": goal_image})
+    task_image = model.create_tasks(goals={"image_primary": goal_image, "image_wrist": goal_image_wrist})
+    # task_image = model.create_tasks(goals={"image_primary": goal_image})
     policy_fn = jax.jit(model.sample_actions)
     rollout(env, policy_fn, task_image, "image goal", statistics,
             ep_len=ep_len, pred_horizon=pred_horizon, exp_weight=exp_weight, chunk=chunk)
@@ -125,8 +125,9 @@ def image_rollout(model, env, statistics, goal_obs=None, ep_len=500, pred_horizo
 def rollout(env, policy_fn, task, goal, statistics, horizon=2, ep_len=5000, pred_horizon=1, exp_weight=1, chunk=0):
     ewa_action = ExpWeightedAverage(pred_horizon, exp_weight=exp_weight)
     observations = {
-        "image_0": np.zeros((1, horizon, 256, 256, 3), dtype=np.uint8),  # batch, horizon, width, height, channels,
-        "image_1": np.zeros((1, horizon, 128, 128, 3), dtype=np.uint8),  # for wrist camera
+        # batch, horizon, width, height, channels,
+        "image_primary": np.zeros((1, horizon, 256, 256, 3), dtype=np.uint8),
+        "image_wrist": np.zeros((1, horizon, 128, 128, 3), dtype=np.uint8),  # for wrist camera
         "timestep_pad_mask": np.array([[True, True]])
     }
     obs_deque = collections.deque(maxlen=horizon)
@@ -148,12 +149,12 @@ def rollout(env, policy_fn, task, goal, statistics, horizon=2, ep_len=5000, pred
     obs_deque_wrist.append(image_wrist)
 
     images = np.stack([x for x in obs_deque])
-    observations["image_0"] = images[None, ...]
-    assert observations["image_0"].shape[1] == horizon
+    observations["image_primary"] = images[None, ...]
+    assert observations["image_primary"].shape[1] == horizon
 
     images_wrist = np.stack([x for x in obs_deque_wrist])
-    observations["image_1"] = images_wrist[None, ...]
-    assert observations["image_1"].shape[1] == horizon
+    observations["image_wrist"] = images_wrist[None, ...]
+    assert observations["image_wrist"].shape[1] == horizon
 
     # datetime object containing current date and time
     now = datetime.now()
@@ -197,12 +198,12 @@ def rollout(env, policy_fn, task, goal, statistics, horizon=2, ep_len=5000, pred
         obs_deque_wrist.append(image_wrist)
 
         images = np.stack([x for x in obs_deque])
-        observations["image_0"] = images[None, ...]
-        assert observations["image_0"].shape[1] == horizon
+        observations["image_primary"] = images[None, ...]
+        assert observations["image_primary"].shape[1] == horizon
 
         images_wrist = np.stack([x for x in obs_deque_wrist])
-        observations["image_1"] = images_wrist[None, ...]
-        assert observations["image_1"].shape[1] == horizon
+        observations["image_wrist"] = images_wrist[None, ...]
+        assert observations["image_wrist"].shape[1] == horizon
 
         cv2.imshow("rgb_static", obs["rgb_static"][:, :, ::-1])
         cv2.imshow("rgb_gripper", obs["rgb_gripper"][:, :, ::-1])
